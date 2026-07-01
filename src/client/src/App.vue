@@ -1,11 +1,32 @@
 <template>
-  <main class="app-shell">
+  <main v-if="!currentUser" class="login-shell">
+    <form class="login-panel" @submit.prevent="login">
+      <h1>Tycho</h1>
+      <p>Sign in to open server-side TUI sessions.</p>
+      <label>
+        <span>Username</span>
+        <input v-model="loginForm.username" autocomplete="username" required />
+      </label>
+      <label>
+        <span>Password</span>
+        <input v-model="loginForm.password" type="password" autocomplete="current-password" required />
+      </label>
+      <button type="submit" :disabled="loginBusy">Log In</button>
+      <p class="form-status error">{{ loginError }}</p>
+    </form>
+  </main>
+
+  <main v-else class="app-shell">
     <aside class="sidebar">
       <div>
-        <h1>Tycho</h1>
+        <div class="brand-row">
+          <h1>Tycho</h1>
+          <button class="link-button" type="button" @click="logout">Log Out</button>
+        </div>
         <p id="connectionStatus" class="status" :class="{ connected: state.connected }">
           {{ state.connected ? "Connected" : connectionLabel }}
         </p>
+        <p class="current-user">{{ currentUser.username }} / {{ currentUser.role }}</p>
       </div>
 
       <div class="projects">
@@ -17,9 +38,10 @@
             </option>
           </select>
         </label>
-        <p id="projectPath" class="project-path">{{ selectedProject?.path || "No project configured" }}</p>
+        <p id="projectPath" class="project-path">{{ selectedProject?.path || "No projects assigned" }}</p>
         <p id="projectDescription" class="project-description">{{ selectedProject?.description || "" }}</p>
         <button
+          v-if="isAdmin"
           id="deleteProject"
           class="secondary-button"
           type="button"
@@ -30,7 +52,7 @@
         </button>
       </div>
 
-      <div class="project-manager">
+      <div v-if="isAdmin" class="project-manager">
         <h2>Add Project</h2>
         <form id="projectForm" class="project-form" @submit.prevent="submitProjectForm">
           <label>
@@ -48,6 +70,67 @@
           <button type="submit" :disabled="projectFormBusy">Add Project</button>
           <p id="projectFormStatus" class="form-status" :class="projectFormTone">{{ projectFormStatus }}</p>
         </form>
+      </div>
+
+      <div v-if="isAdmin" class="users">
+        <h2>Users</h2>
+        <form class="project-form" @submit.prevent="createNewUser">
+          <label>
+            <span>New Username</span>
+            <input v-model="newUserForm.username" autocomplete="off" required />
+          </label>
+          <label>
+            <span>New Password</span>
+            <input v-model="newUserForm.password" type="password" autocomplete="new-password" required />
+          </label>
+          <label>
+            <span>New Role</span>
+            <select v-model="newUserForm.role" class="project-select">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </label>
+          <button type="submit" :disabled="userFormBusy">Create User</button>
+          <p id="userFormStatus" class="form-status" :class="userFormTone">{{ userFormStatus }}</p>
+        </form>
+
+        <div class="user-list">
+          <article v-for="user in users" :key="user.id" class="user-card" :data-user-row="user.username">
+            <div class="user-card-header">
+              <strong>{{ user.username }}</strong>
+              <span>{{ user.status }}</span>
+            </div>
+            <label>
+              <span>Role</span>
+              <select v-model="userEdits[user.id].role" class="project-select">
+                <option value="user">user</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <label>
+              <span>Password</span>
+              <input v-model="userEdits[user.id].password" type="password" placeholder="New password" />
+            </label>
+            <div class="user-actions">
+              <button type="button" @click="saveUser(user)">Save User</button>
+              <button type="button" @click="toggleUserStatus(user)">{{ user.status === "active" ? "Disable" : "Enable" }}</button>
+              <button class="danger" type="button" @click="deleteUser(user)">Delete</button>
+            </div>
+            <fieldset class="assignment-list">
+              <legend>Projects</legend>
+              <label v-for="project in config.projects" :key="project.id" class="assignment-item">
+                <input
+                  v-model="userEdits[user.id].projectIds"
+                  type="checkbox"
+                  :value="project.id"
+                />
+                <span>{{ project.name }}</span>
+              </label>
+            </fieldset>
+            <button type="button" @click="saveUserProjects(user)">Save Projects</button>
+            <p class="user-status-message form-status" :class="userEdits[user.id].tone">{{ userEdits[user.id].message }}</p>
+          </article>
+        </div>
       </div>
 
       <div class="launcher">
@@ -94,7 +177,7 @@
           <h2>Server-side TUIs</h2>
           <p>CodeBuddy / Codex / Claude run inside tuimux on the server.</p>
         </div>
-        <button id="newCodeBuddy" type="button" @click="createSession('codebuddy')">New CodeBuddy</button>
+        <button id="newCodeBuddy" type="button" :disabled="!selectedProjectId" @click="createSession('codebuddy')">New CodeBuddy</button>
       </header>
 
       <div id="terminalGrid" class="terminal-grid" :class="{ empty: terminalEntries.length === 0 }">
@@ -138,50 +221,24 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import type { ComponentPublicInstance } from "vue";
 import { Terminal } from "@xterm/xterm";
 
-type AgentConfig = {
+type AgentConfig = { id: string; name: string; command: string; args?: string; cwd: string };
+type ProjectConfig = { id: string; name: string; path: string; description?: string; managed?: boolean };
+type UserRole = "admin" | "user";
+type UserStatus = "active" | "disabled" | "deleted";
+type PublicUser = {
   id: string;
-  name: string;
-  command: string;
-  args?: string;
-  cwd: string;
+  username: string;
+  role: UserRole;
+  status: UserStatus;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
+  projectIds: string[];
 };
-
-type ProjectConfig = {
-  id: string;
-  name: string;
-  path: string;
-  description?: string;
-  managed?: boolean;
-};
-
-type PublicRuntimeConfig = {
-  agents: AgentConfig[];
-  projects: ProjectConfig[];
-  defaultProjectId: string;
-  webPort: number;
-};
-
-type AgentEntry = AgentConfig & {
-  autostart: boolean;
-  restart_on_exit: boolean;
-  env?: Record<string, string>;
-};
-
-type TuimuxPane = {
-  paneId: string;
-  entry: AgentEntry;
-  status: "running" | "stopped" | "error";
-  buffer: string;
-  runId?: number;
-};
-
-type TuimuxWindow = {
-  id: string;
-  title: string;
-  layout: unknown;
-  activePaneId: string;
-};
-
+type PublicRuntimeConfig = { agents: AgentConfig[]; projects: ProjectConfig[]; defaultProjectId: string; webPort: number };
+type AgentEntry = AgentConfig & { autostart: boolean; restart_on_exit: boolean; env?: Record<string, string> };
+type TuimuxPane = { paneId: string; entry: AgentEntry; status: "running" | "stopped" | "error"; buffer: string; runId?: number };
+type TuimuxWindow = { id: string; title: string; layout: unknown; activePaneId: string };
 type TuimuxState = {
   connected: boolean;
   serverVersion?: string;
@@ -190,28 +247,16 @@ type TuimuxState = {
   activeWindowId: string | null;
   activePaneId: string | null;
 };
-
-type TerminalEntry = {
-  windowState: TuimuxWindow;
-  pane: TuimuxPane;
-};
-
+type TerminalEntry = { windowState: TuimuxWindow; pane: TuimuxPane };
 type TerminalRecord = {
   term: Terminal;
   host: HTMLElement;
   resizeObserver: ResizeObserver;
   inputDisposable: { dispose: () => void };
 };
+type ServerMessage = { type?: unknown; config?: unknown; state?: unknown; paneId?: unknown; data?: unknown };
 
-type ServerMessage =
-  | { type?: unknown; config?: unknown; state?: unknown; paneId?: unknown; data?: unknown };
-
-const config = reactive<PublicRuntimeConfig>({
-  agents: [],
-  projects: [],
-  defaultProjectId: "",
-  webPort: 0
-});
+const config = reactive<PublicRuntimeConfig>({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
 const state = reactive<TuimuxState>({
   connected: false,
   windows: [],
@@ -219,26 +264,30 @@ const state = reactive<TuimuxState>({
   activeWindowId: null,
   activePaneId: null
 });
-const projectForm = reactive({
-  name: "",
-  path: "",
-  description: ""
-});
+const currentUser = ref<PublicUser | null>(null);
+const users = ref<PublicUser[]>([]);
+const userEdits = reactive<Record<string, { role: UserRole; password: string; projectIds: string[]; message: string; tone: string }>>({});
+const loginForm = reactive({ username: "admin", password: "admin" });
+const projectForm = reactive({ name: "", path: "", description: "" });
+const newUserForm = reactive<{ username: string; password: string; role: UserRole }>({ username: "", password: "", role: "user" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
+const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
+const userFormStatus = ref("");
+const userFormTone = ref("");
+const loginBusy = ref(false);
 const projectFormBusy = ref(false);
 const projectDeleteBusy = ref(false);
+const userFormBusy = ref(false);
 const socket = ref<WebSocket | null>(null);
 const reconnectTimer = ref<number | null>(null);
 const connectionLabel = ref("Connecting");
 const terminals = new Map<string, TerminalRecord>();
 
-const selectedProject = computed(() =>
-  config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]
-);
-
+const isAdmin = computed(() => currentUser.value?.role === "admin");
+const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
@@ -246,7 +295,88 @@ const terminalEntries = computed<TerminalEntry[]>(() =>
   })
 );
 
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      "content-type": "application/json",
+      ...init?.headers
+    }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(typeof payload.error === "string" ? payload.error : "Request failed");
+  }
+  return payload as T;
+}
+
+async function initAuth(): Promise<void> {
+  const payload = await requestJson<{ user: PublicUser | null }>("/api/auth/me");
+  currentUser.value = payload.user;
+  if (currentUser.value) {
+    await afterAuthenticated();
+  }
+}
+
+async function afterAuthenticated(): Promise<void> {
+  await fetchConfig();
+  if (isAdmin.value) {
+    await fetchUsers();
+  }
+  connect();
+}
+
+async function login(): Promise<void> {
+  loginBusy.value = true;
+  loginError.value = "";
+  try {
+    const payload = await requestJson<{ user: PublicUser }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(loginForm)
+    });
+    currentUser.value = payload.user;
+    await afterAuthenticated();
+  } catch (error) {
+    loginError.value = error instanceof Error ? error.message : "Login failed";
+  } finally {
+    loginBusy.value = false;
+  }
+}
+
+async function logout(): Promise<void> {
+  await requestJson<{ ok: boolean }>("/api/auth/logout", { method: "POST", body: "{}" });
+  disconnect();
+  currentUser.value = null;
+  users.value = [];
+  applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
+  applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
+}
+
+async function fetchConfig(): Promise<void> {
+  const nextConfig = await requestJson<PublicRuntimeConfig>("/api/config");
+  applyConfig(nextConfig);
+}
+
+async function fetchUsers(): Promise<void> {
+  const payload = await requestJson<{ users: PublicUser[] }>("/api/users");
+  setUsers(payload.users);
+}
+
+function setUsers(nextUsers: PublicUser[]): void {
+  users.value = nextUsers;
+  for (const user of nextUsers) {
+    userEdits[user.id] = {
+      role: user.role,
+      password: "",
+      projectIds: [...user.projectIds],
+      message: "",
+      tone: ""
+    };
+  }
+}
+
 function connect(): void {
+  disconnect();
   const protocol = location.protocol === "https:" ? "wss" : "ws";
   const nextSocket = new WebSocket(`${protocol}://${location.host}/ws`);
   socket.value = nextSocket;
@@ -255,13 +385,13 @@ function connect(): void {
     connectionLabel.value = "Connected";
     state.connected = true;
   });
-
   nextSocket.addEventListener("close", () => {
     state.connected = false;
     connectionLabel.value = "Disconnected, retrying";
-    reconnectTimer.value = window.setTimeout(connect, 800);
+    if (currentUser.value) {
+      reconnectTimer.value = window.setTimeout(connect, 800);
+    }
   });
-
   nextSocket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data) as ServerMessage;
     if (message.type === "config") {
@@ -276,6 +406,18 @@ function connect(): void {
       terminals.get(message.paneId)?.term.write(message.data);
     }
   });
+}
+
+function disconnect(): void {
+  if (reconnectTimer.value) {
+    window.clearTimeout(reconnectTimer.value);
+    reconnectTimer.value = null;
+  }
+  socket.value?.close();
+  socket.value = null;
+  for (const paneId of [...terminals.keys()]) {
+    disposeTerminal(paneId);
+  }
 }
 
 function send(payload: Record<string, unknown>): void {
@@ -310,7 +452,10 @@ function getProjectId(preferredProjectId?: string): string {
   if (stored && config.projects.some((project) => project.id === stored)) {
     return stored;
   }
-  return config.defaultProjectId || config.projects[0]?.id || "";
+  if (config.defaultProjectId && config.projects.some((project) => project.id === config.defaultProjectId)) {
+    return config.defaultProjectId;
+  }
+  return config.projects[0]?.id || "";
 }
 
 function persistSelectedProject(): void {
@@ -326,17 +471,11 @@ function createSession(agentId: string): void {
 async function submitProjectForm(): Promise<void> {
   setProjectFormStatus("Adding project");
   projectFormBusy.value = true;
-
   try {
-    const response = await fetch("/api/projects", {
+    const payload = await requestJson<{ project: ProjectConfig; config: PublicRuntimeConfig }>("/api/projects", {
       method: "POST",
-      headers: { "content-type": "application/json" },
       body: JSON.stringify(projectForm)
     });
-    const payload = await response.json() as { project?: ProjectConfig; config?: PublicRuntimeConfig; error?: string };
-    if (!response.ok || !payload.project || !payload.config) {
-      throw new Error(payload.error || "Could not add project");
-    }
     projectForm.name = "";
     projectForm.path = "";
     projectForm.description = "";
@@ -350,22 +489,14 @@ async function submitProjectForm(): Promise<void> {
 }
 
 async function deleteSelectedProject(): Promise<void> {
-  if (!selectedProject.value?.managed) {
+  if (!selectedProject.value?.managed || !confirm(`Delete project "${selectedProject.value.name}" from Tycho?`)) {
     return;
   }
-  if (!confirm(`Delete project "${selectedProject.value.name}" from Tycho?`)) {
-    return;
-  }
-
   projectDeleteBusy.value = true;
   try {
-    const response = await fetch(`/api/projects/${encodeURIComponent(selectedProject.value.id)}`, {
+    const payload = await requestJson<{ ok: boolean; config: PublicRuntimeConfig }>(`/api/projects/${encodeURIComponent(selectedProject.value.id)}`, {
       method: "DELETE"
     });
-    const payload = await response.json() as { ok?: boolean; config?: PublicRuntimeConfig; error?: string };
-    if (!response.ok || !payload.config) {
-      throw new Error(payload.error || "Could not delete project");
-    }
     applyConfig(payload.config);
     setProjectFormStatus("Project deleted", "success");
   } catch (error) {
@@ -375,9 +506,83 @@ async function deleteSelectedProject(): Promise<void> {
   }
 }
 
+async function createNewUser(): Promise<void> {
+  userFormBusy.value = true;
+  setUserFormStatus("Creating user");
+  try {
+    const payload = await requestJson<{ users: PublicUser[] }>("/api/users", {
+      method: "POST",
+      body: JSON.stringify(newUserForm)
+    });
+    newUserForm.username = "";
+    newUserForm.password = "";
+    newUserForm.role = "user";
+    setUsers(payload.users);
+    setUserFormStatus("User created", "success");
+  } catch (error) {
+    setUserFormStatus(error instanceof Error ? error.message : "Could not create user", "error");
+  } finally {
+    userFormBusy.value = false;
+  }
+}
+
+async function saveUser(user: PublicUser): Promise<void> {
+  const edit = userEdits[user.id];
+  try {
+    const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role: edit.role, password: edit.password })
+    });
+    setUsers(payload.users);
+    userEdits[user.id].message = "User saved";
+    userEdits[user.id].tone = "success";
+  } catch (error) {
+    edit.message = error instanceof Error ? error.message : "Could not save user";
+    edit.tone = "error";
+  }
+}
+
+async function toggleUserStatus(user: PublicUser): Promise<void> {
+  const nextStatus = user.status === "active" ? "disabled" : "active";
+  const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status: nextStatus })
+  });
+  setUsers(payload.users);
+}
+
+async function deleteUser(user: PublicUser): Promise<void> {
+  if (!confirm(`Delete user "${user.username}" from Tycho?`)) {
+    return;
+  }
+  const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}`, { method: "DELETE" });
+  setUsers(payload.users);
+}
+
+async function saveUserProjects(user: PublicUser): Promise<void> {
+  const edit = userEdits[user.id];
+  try {
+    const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}/projects`, {
+      method: "PUT",
+      body: JSON.stringify({ projectIds: edit.projectIds })
+    });
+    setUsers(payload.users);
+    userEdits[user.id].message = "Projects saved";
+    userEdits[user.id].tone = "success";
+  } catch (error) {
+    edit.message = error instanceof Error ? error.message : "Could not save projects";
+    edit.tone = "error";
+  }
+}
+
 function setProjectFormStatus(message: string, tone = ""): void {
   projectFormStatus.value = message;
   projectFormTone.value = tone;
+}
+
+function setUserFormStatus(message: string, tone = ""): void {
+  userFormStatus.value = message;
+  userFormTone.value = tone;
 }
 
 function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
@@ -434,14 +639,12 @@ function mountTerminal(entry: TerminalEntry, host: HTMLElement): void {
       selectionBackground: "#2f5d7c"
     }
   });
-
   term.open(host);
   term.write(entry.pane.buffer || "");
   const inputDisposable = term.onData((data) => send({ type: "input", paneId: entry.pane.paneId, data }));
   const resizeObserver = new ResizeObserver(() => resizeTerminal(entry.pane.paneId));
   resizeObserver.observe(host);
   terminals.set(entry.pane.paneId, { term, host, resizeObserver, inputDisposable });
-
   window.setTimeout(() => {
     resizeTerminal(entry.pane.paneId);
     focusPane(entry);
@@ -488,15 +691,9 @@ watch(
   }
 );
 
-onMounted(connect);
-
-onUnmounted(() => {
-  if (reconnectTimer.value) {
-    window.clearTimeout(reconnectTimer.value);
-  }
-  socket.value?.close();
-  for (const paneId of [...terminals.keys()]) {
-    disposeTerminal(paneId);
-  }
+onMounted(() => {
+  void initAuth();
 });
+
+onUnmounted(disconnect);
 </script>

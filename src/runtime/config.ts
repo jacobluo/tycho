@@ -312,7 +312,12 @@ export function readRuntimeConfig(): RuntimeConfig {
   };
 }
 
-export function createSessionEntry(agent: AgentEntry, project: ProjectConfig, label?: string): AgentEntry {
+export function createSessionEntry(
+  agent: AgentEntry,
+  project: ProjectConfig,
+  label?: string,
+  env?: Record<string, string>
+): AgentEntry {
   const now = new Date();
   const stamp = now.toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const sessionName = label?.trim() || `${agent.name} · ${project.name} ${now.toLocaleTimeString()}`;
@@ -328,7 +333,8 @@ export function createSessionEntry(agent: AgentEntry, project: ProjectConfig, la
       ...agent.env,
       REMOTE_TUI_PROJECT_ID: project.id,
       REMOTE_TUI_PROJECT_NAME: project.name,
-      REMOTE_TUI_PROJECT_PATH: project.path
+      REMOTE_TUI_PROJECT_PATH: project.path,
+      ...env
     }
   };
 }
@@ -350,7 +356,11 @@ export function getProject(projectId: string | undefined, runtime = readRuntimeC
   return project;
 }
 
-export function getPublicRuntimeConfig(runtime = readRuntimeConfig()) {
+export function getPublicRuntimeConfig(runtime = readRuntimeConfig(), projects = runtime.projects) {
+  const defaultProjectId = projects.some((project) => project.id === runtime.defaultProjectId)
+    ? runtime.defaultProjectId
+    : projects[0]?.id || "";
+
   return {
     agents: runtime.agents.map(({ id, name, command, args, cwd }) => ({
       id,
@@ -359,8 +369,8 @@ export function getPublicRuntimeConfig(runtime = readRuntimeConfig()) {
       args,
       cwd
     })),
-    projects: runtime.projects,
-    defaultProjectId: runtime.defaultProjectId,
+    projects,
+    defaultProjectId,
     webPort: runtime.webPort
   };
 }

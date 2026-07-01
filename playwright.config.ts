@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const projectsDbPath = `.playwright-mcp/projects-${process.pid}.sqlite`;
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
@@ -18,7 +20,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: "PORT=3217 PROJECTS_DB=.playwright-mcp/projects.sqlite pnpm run dev",
+    command: `PORT=3217 PROJECTS_DB=${projectsDbPath} pnpm run dev`,
     url: "http://127.0.0.1:3217",
     reuseExistingServer: false,
     timeout: 20_000

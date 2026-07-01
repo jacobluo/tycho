@@ -52,6 +52,7 @@ button:disabled {
 }
 
 input,
+select,
 textarea {
   background: #12161d;
   border: 1px solid var(--line);
@@ -70,8 +71,56 @@ textarea {
 }
 
 input:focus,
+select:focus,
 textarea:focus {
   border-color: var(--accent);
+}
+
+.login-shell {
+  align-items: center;
+  background: var(--bg);
+  display: flex;
+  height: 100vh;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-panel {
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 360px;
+  padding: 26px;
+  width: 100%;
+}
+
+.login-panel h1 {
+  font-size: 28px;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.login-panel p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.login-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-panel span,
+.current-user {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
 }
 
 .app-shell {
@@ -102,6 +151,23 @@ textarea:focus {
 
 .sidebar h1 {
   font-size: 22px;
+}
+
+.brand-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.link-button {
+  background: transparent;
+  min-height: 28px;
+  padding: 0 8px;
+}
+
+.current-user {
+  margin: 8px 0 0;
 }
 
 .sidebar h2 {
@@ -196,6 +262,92 @@ textarea:focus {
 
 .form-status.success {
   color: #70e0a3;
+}
+
+.users {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.user-card {
+  background: #12161d;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.user-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.user-card label > span,
+.assignment-list legend {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.user-card-header,
+.user-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.user-card-header {
+  justify-content: space-between;
+}
+
+.user-card-header strong {
+  font-size: 13px;
+}
+
+.user-card-header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.user-actions button {
+  flex: 1 1 0;
+  padding: 0 8px;
+}
+
+.user-actions .danger:hover,
+button.danger:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.assignment-list {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+}
+
+.assignment-item {
+  align-items: center;
+  flex-direction: row !important;
+  gap: 8px !important;
+}
+
+.assignment-item input {
+  width: auto;
 }
 
 .agent-buttons,

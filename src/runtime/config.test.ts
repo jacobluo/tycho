@@ -7,6 +7,7 @@ import {
   addManagedProject,
   createSessionEntry,
   getProject,
+  getPublicRuntimeConfig,
   removeManagedProject,
   readRuntimeConfig
 } from "./config.js";
@@ -92,6 +93,20 @@ describe("runtime config", () => {
     assert.equal(entry.cwd, projectPath);
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_ID, "session");
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_PATH, projectPath);
+  });
+
+  test("public config default project falls back to visible projects", () => {
+    const alphaPath = makeProjectDir("alpha");
+    const betaPath = makeProjectDir("beta");
+    process.env.PROJECTS_JSON = JSON.stringify([
+      { id: "alpha", name: "Alpha", path: alphaPath },
+      { id: "beta", name: "Beta", path: betaPath }
+    ]);
+    process.env.DEFAULT_PROJECT_ID = "alpha";
+    const runtime = readRuntimeConfig();
+
+    assert.equal(getPublicRuntimeConfig(runtime, [runtime.projects[1]]).defaultProjectId, "beta");
+    assert.equal(getPublicRuntimeConfig(runtime, []).defaultProjectId, "");
   });
 
   test("persists managed projects with descriptions", async () => {
