@@ -44,6 +44,12 @@ test("adds and deletes a managed project", async ({ page }) => {
   await expect(page.locator("#projectSelect")).not.toHaveValue("e2e-managed-project");
 });
 
+test("boots the Vue Vite client", async ({ page }) => {
+  await page.goto("/");
+
+  await expect.poll(() => page.evaluate(() => window.__TYCHO_CLIENT__)).toBe("vue-vite");
+});
+
 test("shows a validation error for an invalid project path", async ({ page }) => {
   const missingPath = join(tmpdir(), `tycho-e2e-missing-${Date.now()}`);
 

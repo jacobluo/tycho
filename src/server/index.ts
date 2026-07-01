@@ -1,5 +1,6 @@
 import express from "express";
 import http from "node:http";
+import { join } from "node:path";
 import { WebSocketServer, type WebSocket } from "ws";
 import {
   addManagedProject,
@@ -11,7 +12,7 @@ import {
   removeManagedProject,
   type RuntimeConfig
 } from "../runtime/config.js";
-import { nodeModulesDir, publicDir } from "../shared/paths.js";
+import { clientDistDir, projectRoot } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
 
 let runtime: RuntimeConfig = readRuntimeConfig();
@@ -21,8 +22,6 @@ await tuimux.start();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(publicDir));
-app.use("/vendor/xterm", express.static(`${nodeModulesDir}/@xterm/xterm`));
 
 app.get("/api/config", (_request, response) => {
   response.json(getPublicRuntimeConfig(runtime));
@@ -76,6 +75,21 @@ app.delete("/api/windows/:windowId", (request, response) => {
   tuimux.closeWindow(request.params.windowId);
   response.status(202).json({ ok: true });
 });
+
+if (process.env.NODE_ENV === "development") {
+  const { createServer } = await import("vite");
+  const vite = await createServer({
+    configFile: join(projectRoot, "vite.config.ts"),
+    server: { middlewareMode: true },
+    appType: "spa"
+  });
+  app.use(vite.middlewares);
+} else {
+  app.use(express.static(clientDistDir));
+  app.get(/.*/, (_request, response) => {
+    response.sendFile(join(clientDistDir, "index.html"));
+  });
+}
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });

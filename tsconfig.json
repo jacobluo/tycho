@@ -11,5 +11,11 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src/runtime/**/*.ts",
+    "src/scripts/**/*.ts",
+    "src/server/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/tuimux/**/*.ts"
+  ]
 }

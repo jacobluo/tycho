@@ -14,5 +14,5 @@ export const tuimuxXdgConfigPath = join(tuimuxConfigDir, "tuimux.yaml");
 export const tuimuxSocketPath = join(tuimuxStateDir, "tuimux.sock");
 export const projectsDbPath = join(tuimuxHome, "tycho.sqlite");
 export const tuimuxBinPath = join(projectRoot, "node_modules", "tuimux", "dist", "index.js");
-export const publicDir = join(projectRoot, "public");
+export const clientDistDir = join(projectRoot, "dist", "client");
 export const nodeModulesDir = join(projectRoot, "node_modules");

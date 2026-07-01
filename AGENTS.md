@@ -20,8 +20,8 @@ Before coding, read and follow:
 
 ## Project Layout
 
-- `public/`
-  - Browser UI, xterm setup, WebSocket client, styles.
+- `src/client/`
+  - Vue + Vite browser UI, xterm setup, WebSocket client, styles.
 - `src/runtime/`
   - Runtime config, project allowlist, agent definitions, session entry creation.
 - `src/server/`
@@ -64,7 +64,7 @@ Do not add browser features that accept arbitrary shell commands, arbitrary path
 
 ## Current Design Decisions
 
-- Frontend uses plain HTML/CSS/JS plus `@xterm/xterm`.
+- Frontend uses Vue 3 + Vite plus `@xterm/xterm`.
 - Backend uses Express and `ws`.
 - Tuimux is treated as the source of truth for server-side TUI process/session management.
 - The isolated tuimux config/state lives under `.tuimux/`.

@@ -15,12 +15,12 @@ The browser never runs the coding agent directly. Each panel is an xterm view th
 - `tuimux` runs as an isolated session server with `XDG_CONFIG_HOME` and `XDG_STATE_HOME` under `.tuimux/`.
 - `src/tuimux/client.ts` connects to `tuimux` over its newline-delimited JSON Unix socket.
 - `src/server/index.ts` exposes HTTP and WebSocket endpoints.
-- `public/app.js` renders multiple xterm panels and forwards keyboard input to the matching tuimux pane.
+- `src/client/` contains the Vue + Vite browser app that renders xterm panels and forwards keyboard input to the matching tuimux pane.
 
 ## Project Layout
 
 ```text
-public/             Browser UI, xterm setup, and styles
+src/client/         Vue + Vite browser UI, xterm setup, and styles
 src/runtime/        Runtime config, project allowlist, agent entries
 src/server/         Express HTTP API and WebSocket bridge
 src/shared/         Shared filesystem paths
@@ -58,9 +58,9 @@ pnpm test
 pnpm run verify
 ```
 
-- `typecheck`: TypeScript strict type checking without emitting files.
+- `typecheck`: server TypeScript and Vue client strict type checking without emitting files.
 - `test`: Node's built-in test runner with `tsx` for TypeScript tests.
-- `verify`: lint, typecheck, tests, E2E placeholder, and production build.
+- `verify`: lint, typecheck, tests, Playwright E2E, and production build.
 
 ## Projects
 

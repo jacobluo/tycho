@@ -2,3 +2,4 @@
 set -euo pipefail
 
 pnpm exec tsc --noEmit
+pnpm exec vue-tsc --noEmit -p tsconfig.client.json
