@@ -21,6 +21,27 @@
             <select id="projectSelect" class="project-select"></select>
           </label>
           <p id="projectPath" class="project-path"></p>
+          <p id="projectDescription" class="project-description"></p>
+          <button id="deleteProject" class="secondary-button" type="button">Delete Project</button>
+        </div>
+        <div class="project-manager">
+          <h2>Add Project</h2>
+          <form id="projectForm" class="project-form">
+            <label>
+              <span>Name</span>
+              <input id="projectNameInput" name="name" type="text" autocomplete="off" required />
+            </label>
+            <label>
+              <span>Local Path</span>
+              <input id="projectPathInput" name="path" type="text" autocomplete="off" required />
+            </label>
+            <label>
+              <span>Description</span>
+              <textarea id="projectDescriptionInput" name="description" rows="3"></textarea>
+            </label>
+            <button type="submit">Add Project</button>
+            <p id="projectFormStatus" class="form-status"></p>
+          </form>
         </div>
         <div class="launcher">
           <h2>Agents</h2>

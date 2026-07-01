@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, test } from "node:test";
 import {
+  addManagedProject,
   createSessionEntry,
   getProject,
+  removeManagedProject,
   readRuntimeConfig
 } from "./config.js";
 
@@ -25,6 +27,7 @@ beforeEach(() => {
   delete process.env.DEFAULT_PROJECT_ID;
   delete process.env.AGENT_WORKDIR;
   delete process.env.CODEBUDDY_WORKDIR;
+  delete process.env.PROJECTS_DB;
 });
 
 afterEach(() => {
@@ -89,5 +92,58 @@ describe("runtime config", () => {
     assert.equal(entry.cwd, projectPath);
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_ID, "session");
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_PATH, projectPath);
+  });
+
+  test("persists managed projects with descriptions", async () => {
+    const storeDir = makeProjectDir("store");
+    const projectPath = makeProjectDir("managed");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+
+    const project = await addManagedProject({
+      name: "Managed App",
+      path: projectPath,
+      description: "Local customer workbench"
+    });
+    const runtime = readRuntimeConfig();
+
+    assert.equal(project.id, "managed-app");
+    assert.deepEqual(runtime.projects.find((candidate) => candidate.id === "managed-app"), {
+      id: "managed-app",
+      name: "Managed App",
+      path: projectPath,
+      description: "Local customer workbench",
+      managed: true
+    });
+    assert.equal(existsSync(process.env.PROJECTS_DB), true);
+  });
+
+  test("rejects managed projects with duplicate paths", async () => {
+    const storeDir = makeProjectDir("store");
+    const projectPath = makeProjectDir("managed");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+
+    await addManagedProject({ name: "First", path: projectPath });
+
+    await assert.rejects(
+      () => addManagedProject({ name: "Second", path: projectPath }),
+      /Project path is already configured/
+    );
+  });
+
+  test("removes only managed projects", async () => {
+    const storeDir = makeProjectDir("store");
+    const envProjectPath = makeProjectDir("env");
+    const managedPath = makeProjectDir("managed");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+    process.env.PROJECTS_JSON = JSON.stringify([
+      { id: "env", name: "Env", path: envProjectPath }
+    ]);
+
+    const project = await addManagedProject({ name: "Managed", path: managedPath });
+
+    assert.equal(await removeManagedProject(project.id), true);
+    assert.equal(readRuntimeConfig().projects.some((candidate) => candidate.id === project.id), false);
+    assert.equal(await removeManagedProject("env"), false);
+    assert.equal(readRuntimeConfig().projects.some((candidate) => candidate.id === "env"), true);
   });
 });

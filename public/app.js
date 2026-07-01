@@ -4,6 +4,13 @@ const els = {
   status: document.querySelector("#connectionStatus"),
   projectSelect: document.querySelector("#projectSelect"),
   projectPath: document.querySelector("#projectPath"),
+  projectDescription: document.querySelector("#projectDescription"),
+  deleteProject: document.querySelector("#deleteProject"),
+  projectForm: document.querySelector("#projectForm"),
+  projectNameInput: document.querySelector("#projectNameInput"),
+  projectPathInput: document.querySelector("#projectPathInput"),
+  projectDescriptionInput: document.querySelector("#projectDescriptionInput"),
+  projectFormStatus: document.querySelector("#projectFormStatus"),
   agentButtons: document.querySelector("#agentButtons"),
   sessionList: document.querySelector("#sessionList"),
   terminalGrid: document.querySelector("#terminalGrid"),
@@ -35,10 +42,7 @@ function connect() {
   socket.addEventListener("message", (event) => {
     const message = JSON.parse(event.data);
     if (message.type === "config") {
-      config = message.config;
-      selectedProjectId = getInitialProjectId();
-      renderProjects();
-      renderAgents();
+      applyConfig(message.config);
       return;
     }
     if (message.type === "state") {
@@ -62,7 +66,21 @@ function createSession(agentId) {
   send({ type: "create_session", agentId, projectId: selectedProjectId });
 }
 
-function getInitialProjectId() {
+function applyConfig(nextConfig, preferredProjectId = selectedProjectId) {
+  config = nextConfig;
+  selectedProjectId = getProjectId(preferredProjectId);
+  if (selectedProjectId) {
+    localStorage.setItem("tycho-project-id", selectedProjectId);
+  }
+  renderProjects();
+  renderAgents();
+  render();
+}
+
+function getProjectId(preferredProjectId) {
+  if (preferredProjectId && config.projects.some((project) => project.id === preferredProjectId)) {
+    return preferredProjectId;
+  }
   const stored = localStorage.getItem("tycho-project-id");
   if (stored && config.projects.some((project) => project.id === stored)) {
     return stored;
@@ -90,6 +108,8 @@ function renderProjects() {
 function renderProjectPath() {
   const project = selectedProject();
   els.projectPath.textContent = project ? project.path : "No project configured";
+  els.projectDescription.textContent = project?.description || "";
+  els.deleteProject.disabled = !project?.managed;
 }
 
 function renderAgents() {
@@ -277,11 +297,75 @@ function escapeHtml(value) {
   })[char]);
 }
 
+async function submitProjectForm(event) {
+  event.preventDefault();
+  setProjectFormStatus("Adding project");
+  const submitButton = els.projectForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+
+  try {
+    const response = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: els.projectNameInput.value,
+        path: els.projectPathInput.value,
+        description: els.projectDescriptionInput.value
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not add project");
+    }
+    els.projectForm.reset();
+    applyConfig(payload.config, payload.project.id);
+    setProjectFormStatus("Project added", "success");
+  } catch (error) {
+    setProjectFormStatus(error.message || "Could not add project", "error");
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+async function deleteSelectedProject() {
+  const project = selectedProject();
+  if (!project?.managed) {
+    return;
+  }
+  if (!confirm(`Delete project "${project.name}" from Tycho?`)) {
+    return;
+  }
+
+  els.deleteProject.disabled = true;
+  try {
+    const response = await fetch(`/api/projects/${encodeURIComponent(project.id)}`, {
+      method: "DELETE"
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not delete project");
+    }
+    applyConfig(payload.config);
+    setProjectFormStatus("Project deleted", "success");
+  } catch (error) {
+    setProjectFormStatus(error.message || "Could not delete project", "error");
+  } finally {
+    renderProjectPath();
+  }
+}
+
+function setProjectFormStatus(message, tone = "") {
+  els.projectFormStatus.textContent = message;
+  els.projectFormStatus.className = `form-status ${tone}`.trim();
+}
+
 els.projectSelect.addEventListener("change", () => {
   selectedProjectId = els.projectSelect.value;
   localStorage.setItem("tycho-project-id", selectedProjectId);
   renderProjectPath();
   renderAgents();
 });
+els.projectForm.addEventListener("submit", submitProjectForm);
+els.deleteProject.addEventListener("click", deleteSelectedProject);
 els.newCodeBuddy.addEventListener("click", () => createSession("codebuddy"));
 connect();

@@ -1,11 +1,20 @@
 import express from "express";
 import http from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
-import { createSessionEntry, getAgent, getProject, getPublicRuntimeConfig, readRuntimeConfig } from "../runtime/config.js";
+import {
+  addManagedProject,
+  createSessionEntry,
+  getAgent,
+  getProject,
+  getPublicRuntimeConfig,
+  readRuntimeConfig,
+  removeManagedProject,
+  type RuntimeConfig
+} from "../runtime/config.js";
 import { nodeModulesDir, publicDir } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
 
-const runtime = readRuntimeConfig();
+let runtime: RuntimeConfig = readRuntimeConfig();
 const tuimux = new TuimuxClient();
 
 await tuimux.start();
@@ -38,6 +47,31 @@ app.post("/api/sessions", (request, response) => {
   }
 });
 
+app.post("/api/projects", async (request, response) => {
+  try {
+    const name = typeof request.body?.name === "string" ? request.body.name : "";
+    const path = typeof request.body?.path === "string" ? request.body.path : "";
+    const description = typeof request.body?.description === "string" ? request.body.description : undefined;
+    const project = await addManagedProject({ name, path, description });
+    refreshRuntimeConfig();
+    broadcastConfig();
+    response.status(201).json({ project, config: getPublicRuntimeConfig(runtime) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Invalid project request" });
+  }
+});
+
+app.delete("/api/projects/:projectId", async (request, response) => {
+  try {
+    const removed = await removeManagedProject(request.params.projectId);
+    refreshRuntimeConfig();
+    broadcastConfig();
+    response.status(removed ? 202 : 404).json({ ok: removed, config: getPublicRuntimeConfig(runtime) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Invalid project request" });
+  }
+});
+
 app.delete("/api/windows/:windowId", (request, response) => {
   tuimux.closeWindow(request.params.windowId);
   response.status(202).json({ ok: true });
@@ -56,6 +90,15 @@ function broadcast(payload: unknown): void {
   for (const client of wss.clients) {
     send(client, payload);
   }
+}
+
+function refreshRuntimeConfig(): RuntimeConfig {
+  runtime = readRuntimeConfig();
+  return runtime;
+}
+
+function broadcastConfig(): void {
+  broadcast({ type: "config", config: getPublicRuntimeConfig(runtime) });
 }
 
 wss.on("connection", (socket) => {

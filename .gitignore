@@ -1,6 +1,8 @@
 .DS_Store
 .build/
 .playwright-mcp/
+playwright-report/
+test-results/
 .tuimux/
 DerivedData/
 dist/

@@ -1,9 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { statSync } from "node:fs";
-import { delimiter, resolve } from "node:path";
+import { mkdirSync, statSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { delimiter, dirname, resolve } from "node:path";
 import { stringify } from "yaml";
 import {
   projectRoot,
+  projectsDbPath,
   tuimuxConfigDir,
   tuimuxLocalConfigPath,
   tuimuxStateDir,
@@ -29,6 +31,14 @@ export type ProjectConfig = {
   id: string;
   name: string;
   path: string;
+  description?: string;
+  managed?: boolean;
+};
+
+export type ManagedProjectInput = {
+  name: string;
+  path: string;
+  description?: string;
 };
 
 export type RuntimeConfig = {
@@ -66,7 +76,59 @@ function slugifyProjectId(value: string): string {
   return slug || "project";
 }
 
-function readProjects(): ProjectConfig[] {
+function getProjectsDbPath(): string {
+  return resolve(process.env.PROJECTS_DB || projectsDbPath);
+}
+
+function openProjectsDb(): DatabaseSync {
+  const path = getProjectsDbPath();
+  mkdirSync(dirname(path), { recursive: true });
+  const db = new DatabaseSync(path);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `);
+  return db;
+}
+
+function readManagedProjects(): ProjectConfig[] {
+  const db = openProjectsDb();
+  try {
+    const rows = db.prepare(`
+      SELECT id, name, path, description
+      FROM projects
+      ORDER BY name COLLATE NOCASE ASC, id ASC
+    `).all() as unknown as Array<ProjectConfig & { description: string }>;
+    return rows.map((project) => ({
+      id: project.id,
+      name: project.name,
+      path: project.path,
+      ...(project.description ? { description: project.description } : {}),
+      managed: true
+    }));
+  } finally {
+    db.close();
+  }
+}
+
+function assertProjectDirectory(path: string): void {
+  try {
+    if (statSync(path).isDirectory()) {
+      return;
+    }
+  } catch {
+    // Fall through to the stable validation error below.
+  }
+  throw new Error(`Project path is not a directory: ${path}`);
+}
+
+function readConfiguredProjects(): ProjectConfig[] {
   let projects: ProjectConfig[];
   const fromJson = process.env.PROJECTS_JSON;
   if (fromJson) {
@@ -82,7 +144,8 @@ function readProjects(): ProjectConfig[] {
       return {
         id: project.id || slugifyProjectId(name),
         name,
-        path: resolve(project.path)
+        path: resolve(project.path),
+        ...(project.description ? { description: project.description } : {})
       };
     });
   } else if (process.env.PROJECT_DIRS) {
@@ -123,6 +186,86 @@ function readProjects(): ProjectConfig[] {
   }
 
   return projects;
+}
+
+function readProjects(): ProjectConfig[] {
+  const projects = [...readConfiguredProjects(), ...readManagedProjects()];
+  const ids = new Set<string>();
+  for (const project of projects) {
+    validateProject(project, ids);
+  }
+  return projects;
+}
+
+function validateProject(project: ProjectConfig, ids: Set<string>): void {
+  if (ids.has(project.id)) {
+    throw new Error(`Duplicate project id: ${project.id}`);
+  }
+  ids.add(project.id);
+  assertProjectDirectory(project.path);
+}
+
+function createUniqueProjectId(name: string, projects: ProjectConfig[]): string {
+  const base = slugifyProjectId(name);
+  const ids = new Set(projects.map((project) => project.id));
+  if (!ids.has(base)) {
+    return base;
+  }
+  for (let index = 2; ; index += 1) {
+    const candidate = `${base}-${index}`;
+    if (!ids.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
+export async function addManagedProject(input: ManagedProjectInput): Promise<ProjectConfig> {
+  const name = input.name.trim();
+  const projectPath = resolve(input.path.trim());
+  const description = input.description?.trim() || "";
+
+  if (!name) {
+    throw new Error("Project name is required");
+  }
+  if (!input.path.trim()) {
+    throw new Error("Project path is required");
+  }
+  assertProjectDirectory(projectPath);
+
+  const projects = readProjects();
+  if (projects.some((project) => project.path === projectPath)) {
+    throw new Error(`Project path is already configured: ${projectPath}`);
+  }
+
+  const now = new Date().toISOString();
+  const project = {
+    id: createUniqueProjectId(name, projects),
+    name,
+    path: projectPath,
+    ...(description ? { description } : {}),
+    managed: true
+  };
+  const db = openProjectsDb();
+  try {
+    db.prepare(`
+      INSERT INTO projects (id, name, path, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(project.id, project.name, project.path, description, now, now);
+  } finally {
+    db.close();
+  }
+
+  return project;
+}
+
+export async function removeManagedProject(projectId: string): Promise<boolean> {
+  const db = openProjectsDb();
+  try {
+    const result = db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
+    return result.changes > 0;
+  } finally {
+    db.close();
+  }
 }
 
 export function readRuntimeConfig(): RuntimeConfig {
