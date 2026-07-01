@@ -1,0 +1,41 @@
+{
+  "name": "tycho",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tycho is a browser-based observatory for server-side CodeBuddy, Codex, and Claude TUI sessions.",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "setup": "scripts/setup",
+    "dev": "scripts/dev",
+    "lint": "scripts/lint",
+    "build": "scripts/build",
+    "typecheck": "scripts/typecheck",
+    "test": "scripts/test",
+    "e2e": "scripts/e2e",
+    "verify": "scripts/verify",
+    "clean": "rm -rf dist tuimux.yaml .playwright-mcp",
+    "start": "node dist/server/index.js",
+    "setup:tuimux": "tsx src/scripts/prepare-tuimux.ts",
+    "tui": "pnpm run setup:tuimux && XDG_CONFIG_HOME=$PWD/.tuimux/config XDG_STATE_HOME=$PWD/.tuimux/state bun node_modules/tuimux/dist/index.js --layout panes",
+    "tuimux:shutdown": "XDG_CONFIG_HOME=$PWD/.tuimux/config XDG_STATE_HOME=$PWD/.tuimux/state bun node_modules/tuimux/dist/index.js --shutdown"
+  },
+  "dependencies": {
+    "@xterm/xterm": "^5.5.0",
+    "express": "^5.1.0",
+    "tuimux": "0.5.5",
+    "ws": "^8.18.3",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.10",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=11"
+  }
+}

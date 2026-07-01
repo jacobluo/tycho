@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tycho</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main id="app" class="app-shell">
+      <aside class="sidebar">
+        <div>
+          <h1>Tycho</h1>
+          <p id="connectionStatus" class="status">Connecting</p>
+        </div>
+        <div class="projects">
+          <h2>Project</h2>
+          <label class="project-select-wrap">
+            <select id="projectSelect" class="project-select"></select>
+          </label>
+          <p id="projectPath" class="project-path"></p>
+        </div>
+        <div class="launcher">
+          <h2>Agents</h2>
+          <div id="agentButtons" class="agent-buttons"></div>
+        </div>
+        <div class="sessions">
+          <h2>Sessions</h2>
+          <div id="sessionList" class="session-list"></div>
+        </div>
+      </aside>
+      <section class="workspace">
+        <header class="workspace-header">
+          <div>
+            <h2>Server-side TUIs</h2>
+            <p>CodeBuddy / Codex / Claude run inside tuimux on the server.</p>
+          </div>
+          <button id="newCodeBuddy" type="button">New CodeBuddy</button>
+        </header>
+        <div id="terminalGrid" class="terminal-grid empty">
+          <div class="empty-state">Start an agent to open a live TUI panel.</div>
+        </div>
+      </section>
+    </main>
+    <script src="/vendor/xterm/lib/xterm.js"></script>
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

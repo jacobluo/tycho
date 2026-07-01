@@ -1,0 +1,75 @@
+---
+description: Verification commands and testing requirements for the Tycho TypeScript project.
+alwaysApply: true
+enabled: true
+provider:
+---
+
+# 测试与质量规则
+
+> Canonical detailed rule: this file. Codex and Claude reach it through `AGENTS.md`.
+
+## 项目类型
+
+Tycho 是 TypeScript / Node.js 项目，不是 Swift/macOS 项目，也不是 React/Vite 项目。
+
+当前工程入口：
+
+- Package manifest: `package.json`
+- Dev server: `src/server/index.ts`
+- Runtime config: `src/runtime/config.ts`
+- Tuimux client: `src/tuimux/client.ts`
+- Browser UI: `public/`
+
+## 验证入口
+
+优先使用 pnpm scripts：
+
+- `pnpm run setup`
+  - 安装依赖。
+- `pnpm run typecheck`
+  - 执行 TypeScript strict typecheck，不产生构建产物。
+- `pnpm test`
+  - 使用 Node 内置 test runner，通过 `tsx` 运行 TypeScript 测试。
+- `pnpm run build`
+  - 执行生产 TypeScript 构建，测试文件不进入 `dist/`。
+- `pnpm run lint`
+  - 当前没有 ESLint 配置，会明确跳过。
+- `pnpm run e2e`
+  - 当前没有自动化 E2E，会明确跳过。
+- `pnpm run verify`
+  - 依次执行 lint、typecheck、tests、e2e、build。
+
+完成前优先运行：
+
+```bash
+pnpm run verify
+```
+
+如果只改了很窄的逻辑，可以先跑：
+
+```bash
+pnpm test
+pnpm run typecheck
+```
+
+最终交付前仍应运行 `pnpm run verify`，除非明确说明无法运行的阻塞原因。
+
+## 测试要求
+
+- 新生产行为必须有测试。
+- Bug 修复必须有回归测试。
+- 文档-only、纯样式且无行为变化、或用户明确批准的 spike 可以例外。
+- 测试应验证用户可见行为或稳定接口，避免绑定无意义的内部实现细节。
+
+## 当前测试边界
+
+- Runtime config、项目白名单、安全边界和 session entry 生成必须有单元测试。
+- WebSocket/tuimux integration 可以先用 smoke/API 验证，后续再补集成测试。
+- 浏览器 UI 的人工/Playwright 检查必须如实说明，不要声称有未实现的 E2E 覆盖。
+
+## 完成标准
+
+- 完成前运行与变更范围匹配的聚焦测试。
+- 最终交付前运行 `pnpm run verify`。
+- 无法运行验证命令时，必须说明阻塞原因和用户可手动执行的命令。

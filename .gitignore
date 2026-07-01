@@ -1,0 +1,11 @@
+.DS_Store
+.build/
+.playwright-mcp/
+.tuimux/
+DerivedData/
+dist/
+node_modules/
+tuimux.yaml
+npm-debug.log*
+*.xcuserstate
+xcuserdata/

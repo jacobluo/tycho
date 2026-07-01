@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "No automated E2E suite configured yet; skipping e2e."
