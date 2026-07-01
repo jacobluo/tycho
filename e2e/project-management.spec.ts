@@ -19,6 +19,20 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await expect(page.getByRole("heading", { name: "Tycho" })).toBeVisible();
 }
 
+async function openProjectManagement(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByRole("button", { name: "Manage" }).click();
+  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
+  await page.getByRole("tab", { name: "Project Management" }).click();
+  await expect(page.getByRole("heading", { name: "Project Management" })).toBeVisible();
+}
+
+async function openUserManagement(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByRole("button", { name: "Manage" }).click();
+  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
+  await page.getByRole("tab", { name: "User Management" }).click();
+  await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
+}
+
 test.afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -32,6 +46,9 @@ test("adds and deletes a managed project", async ({ page }) => {
   const projectPath = makeProjectDir();
 
   await login(page, "admin", "admin");
+  await expect(page.locator(".sidebar").getByRole("heading", { name: "Add Project" })).toHaveCount(0);
+  await expect(page.locator(".sidebar").getByRole("heading", { name: "Users" })).toHaveCount(0);
+  await openProjectManagement(page);
 
   await page.getByLabel("Name", { exact: true }).fill("E2E Managed Project");
   await page.getByLabel("Local Path").fill(projectPath);
@@ -61,6 +78,7 @@ test("shows a validation error for an invalid project path", async ({ page }) =>
   const missingPath = join(tmpdir(), `tycho-e2e-missing-${Date.now()}`);
 
   await login(page, "admin", "admin");
+  await openProjectManagement(page);
   await page.getByLabel("Name", { exact: true }).fill("Missing Project");
   await page.getByLabel("Local Path").fill(missingPath);
   await page.getByRole("button", { name: "Add Project" }).click();
@@ -74,12 +92,14 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   const projectPath = makeProjectDir();
 
   await login(page, "admin", "admin");
+  await openProjectManagement(page);
   await page.getByLabel("Name", { exact: true }).fill("Assigned Project");
   await page.getByLabel("Local Path").fill(projectPath);
   await page.getByLabel("Description").fill("Visible to assigned user");
   await page.getByRole("button", { name: "Add Project" }).click();
   await expect(page.locator("#projectFormStatus")).toHaveText("Project added");
 
+  await openUserManagement(page);
   await page.getByLabel("New Username").fill("alice");
   await page.getByLabel("New Password").fill("secret");
   await page.getByLabel("New Role").selectOption("user");
@@ -97,8 +117,9 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
 
   await expect(page.locator("#projectSelect")).toHaveValue("assigned-project");
   await expect(page.locator("#projectDescription")).toHaveText("Visible to assigned user");
-  await expect(page.getByRole("heading", { name: "Add Project" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Users" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Manage" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Project Management" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "User Management" })).toHaveCount(0);
 
   const status = await page.evaluate(async () => {
     const response = await fetch("/api/projects", {
@@ -112,6 +133,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
 
   await page.getByRole("button", { name: "Log Out" }).click();
   await login(page, "admin", "admin");
+  await openProjectManagement(page);
   await page.locator("#projectSelect").selectOption("assigned-project");
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete Project" }).click();

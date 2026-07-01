@@ -29,6 +29,21 @@
         <p class="current-user">{{ currentUser.username }} / {{ currentUser.role }}</p>
       </div>
 
+      <nav class="sidebar-nav" aria-label="Primary">
+        <button class="nav-button" :class="{ active: activeView === 'workspace' }" type="button" @click="showWorkspace">
+          Workspace
+        </button>
+        <button
+          v-if="isAdmin"
+          class="nav-button"
+          :class="{ active: activeView === 'manage' }"
+          type="button"
+          @click="showManagement"
+        >
+          Manage
+        </button>
+      </nav>
+
       <div class="projects">
         <h2>Project</h2>
         <label class="project-select-wrap">
@@ -40,97 +55,6 @@
         </label>
         <p id="projectPath" class="project-path">{{ selectedProject?.path || "No projects assigned" }}</p>
         <p id="projectDescription" class="project-description">{{ selectedProject?.description || "" }}</p>
-        <button
-          v-if="isAdmin"
-          id="deleteProject"
-          class="secondary-button"
-          type="button"
-          :disabled="!selectedProject?.managed || projectDeleteBusy"
-          @click="deleteSelectedProject"
-        >
-          Delete Project
-        </button>
-      </div>
-
-      <div v-if="isAdmin" class="project-manager">
-        <h2>Add Project</h2>
-        <form id="projectForm" class="project-form" @submit.prevent="submitProjectForm">
-          <label>
-            <span>Name</span>
-            <input v-model="projectForm.name" name="name" type="text" autocomplete="off" required />
-          </label>
-          <label>
-            <span>Local Path</span>
-            <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
-          </label>
-          <label>
-            <span>Description</span>
-            <textarea v-model="projectForm.description" name="description" rows="3"></textarea>
-          </label>
-          <button type="submit" :disabled="projectFormBusy">Add Project</button>
-          <p id="projectFormStatus" class="form-status" :class="projectFormTone">{{ projectFormStatus }}</p>
-        </form>
-      </div>
-
-      <div v-if="isAdmin" class="users">
-        <h2>Users</h2>
-        <form class="project-form" @submit.prevent="createNewUser">
-          <label>
-            <span>New Username</span>
-            <input v-model="newUserForm.username" autocomplete="off" required />
-          </label>
-          <label>
-            <span>New Password</span>
-            <input v-model="newUserForm.password" type="password" autocomplete="new-password" required />
-          </label>
-          <label>
-            <span>New Role</span>
-            <select v-model="newUserForm.role" class="project-select">
-              <option value="user">user</option>
-              <option value="admin">admin</option>
-            </select>
-          </label>
-          <button type="submit" :disabled="userFormBusy">Create User</button>
-          <p id="userFormStatus" class="form-status" :class="userFormTone">{{ userFormStatus }}</p>
-        </form>
-
-        <div class="user-list">
-          <article v-for="user in users" :key="user.id" class="user-card" :data-user-row="user.username">
-            <div class="user-card-header">
-              <strong>{{ user.username }}</strong>
-              <span>{{ user.status }}</span>
-            </div>
-            <label>
-              <span>Role</span>
-              <select v-model="userEdits[user.id].role" class="project-select">
-                <option value="user">user</option>
-                <option value="admin">admin</option>
-              </select>
-            </label>
-            <label>
-              <span>Password</span>
-              <input v-model="userEdits[user.id].password" type="password" placeholder="New password" />
-            </label>
-            <div class="user-actions">
-              <button type="button" @click="saveUser(user)">Save User</button>
-              <button type="button" @click="toggleUserStatus(user)">{{ user.status === "active" ? "Disable" : "Enable" }}</button>
-              <button class="danger" type="button" @click="deleteUser(user)">Delete</button>
-            </div>
-            <fieldset class="assignment-list">
-              <legend>Projects</legend>
-              <label v-for="project in config.projects" :key="project.id" class="assignment-item">
-                <input
-                  v-model="userEdits[user.id].projectIds"
-                  type="checkbox"
-                  :value="project.id"
-                />
-                <span>{{ project.name }}</span>
-              </label>
-            </fieldset>
-            <button type="button" @click="saveUserProjects(user)">Save Projects</button>
-            <p class="user-status-message form-status" :class="userEdits[user.id].tone">{{ userEdits[user.id].message }}</p>
-          </article>
-        </div>
       </div>
 
       <div class="launcher">
@@ -171,7 +95,7 @@
       </div>
     </aside>
 
-    <section class="workspace">
+    <section v-if="activeView === 'workspace'" class="workspace">
       <header class="workspace-header">
         <div>
           <h2>Server-side TUIs</h2>
@@ -211,6 +135,159 @@
             @focus="focusPane(entry)"
           ></div>
         </article>
+      </div>
+    </section>
+
+    <section v-else class="workspace management-shell">
+      <header class="workspace-header management-header">
+        <div>
+          <h2>Admin Management</h2>
+          <p>Manage project access and users without crowding the runtime workspace.</p>
+        </div>
+        <button type="button" @click="showWorkspace">Back to Workspace</button>
+      </header>
+
+      <div class="management-body">
+        <div class="management-tabs" role="tablist" aria-label="Admin sections">
+          <button
+            role="tab"
+            type="button"
+            :aria-selected="adminTab === 'projects'"
+            :class="{ active: adminTab === 'projects' }"
+            @click="adminTab = 'projects'"
+          >
+            Project Management
+          </button>
+          <button
+            role="tab"
+            type="button"
+            :aria-selected="adminTab === 'users'"
+            :class="{ active: adminTab === 'users' }"
+            @click="adminTab = 'users'"
+          >
+            User Management
+          </button>
+        </div>
+
+        <div v-if="adminTab === 'projects'" class="management-panel" role="tabpanel">
+          <div class="section-heading">
+            <h2>Project Management</h2>
+            <p>Add local projects to Tycho and remove managed entries when they are no longer needed.</p>
+          </div>
+          <div class="management-grid">
+            <form id="projectForm" class="project-form admin-card" @submit.prevent="submitProjectForm">
+              <h3>Add Project</h3>
+              <label>
+                <span>Name</span>
+                <input v-model="projectForm.name" name="name" type="text" autocomplete="off" required />
+              </label>
+              <label>
+                <span>Local Path</span>
+                <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
+              </label>
+              <label>
+                <span>Description</span>
+                <textarea v-model="projectForm.description" name="description" rows="4"></textarea>
+              </label>
+              <button type="submit" :disabled="projectFormBusy">Add Project</button>
+              <p id="projectFormStatus" class="form-status" :class="projectFormTone">{{ projectFormStatus }}</p>
+            </form>
+
+            <div class="admin-card project-detail-card">
+              <h3>Selected Project</h3>
+              <dl>
+                <div>
+                  <dt>Name</dt>
+                  <dd>{{ selectedProject?.name || "No project" }}</dd>
+                </div>
+                <div>
+                  <dt>Path</dt>
+                  <dd>{{ selectedProject?.path || "No projects assigned" }}</dd>
+                </div>
+                <div>
+                  <dt>Description</dt>
+                  <dd>{{ selectedProject?.description || "No description" }}</dd>
+                </div>
+              </dl>
+              <button
+                id="deleteProject"
+                class="danger"
+                type="button"
+                :disabled="!selectedProject?.managed || projectDeleteBusy"
+                @click="deleteSelectedProject"
+              >
+                Delete Project
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="management-panel" role="tabpanel">
+          <div class="section-heading">
+            <h2>User Management</h2>
+            <p>Create users, change roles and passwords, and assign project access.</p>
+          </div>
+          <div class="management-grid users-management-grid">
+            <form class="project-form admin-card" @submit.prevent="createNewUser">
+              <h3>Create User</h3>
+              <label>
+                <span>New Username</span>
+                <input v-model="newUserForm.username" autocomplete="off" required />
+              </label>
+              <label>
+                <span>New Password</span>
+                <input v-model="newUserForm.password" type="password" autocomplete="new-password" required />
+              </label>
+              <label>
+                <span>New Role</span>
+                <select v-model="newUserForm.role" class="project-select">
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <button type="submit" :disabled="userFormBusy">Create User</button>
+              <p id="userFormStatus" class="form-status" :class="userFormTone">{{ userFormStatus }}</p>
+            </form>
+
+            <div class="user-list">
+              <article v-for="user in users" :key="user.id" class="user-card" :data-user-row="user.username">
+                <div class="user-card-header">
+                  <strong>{{ user.username }}</strong>
+                  <span>{{ user.status }}</span>
+                </div>
+                <label>
+                  <span>Role</span>
+                  <select v-model="userEdits[user.id].role" class="project-select">
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Password</span>
+                  <input v-model="userEdits[user.id].password" type="password" placeholder="New password" />
+                </label>
+                <div class="user-actions">
+                  <button type="button" @click="saveUser(user)">Save User</button>
+                  <button type="button" @click="toggleUserStatus(user)">{{ user.status === "active" ? "Disable" : "Enable" }}</button>
+                  <button class="danger" type="button" @click="deleteUser(user)">Delete</button>
+                </div>
+                <fieldset class="assignment-list">
+                  <legend>Projects</legend>
+                  <label v-for="project in config.projects" :key="project.id" class="assignment-item">
+                    <input
+                      v-model="userEdits[user.id].projectIds"
+                      type="checkbox"
+                      :value="project.id"
+                    />
+                    <span>{{ project.name }}</span>
+                  </label>
+                </fieldset>
+                <button type="button" @click="saveUserProjects(user)">Save Projects</button>
+                <p class="user-status-message form-status" :class="userEdits[user.id].tone">{{ userEdits[user.id].message }}</p>
+              </article>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -255,6 +332,8 @@ type TerminalRecord = {
   inputDisposable: { dispose: () => void };
 };
 type ServerMessage = { type?: unknown; config?: unknown; state?: unknown; paneId?: unknown; data?: unknown };
+type AppView = "workspace" | "manage";
+type AdminTab = "projects" | "users";
 
 const config = reactive<PublicRuntimeConfig>({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
 const state = reactive<TuimuxState>({
@@ -272,6 +351,8 @@ const projectForm = reactive({ name: "", path: "", description: "" });
 const newUserForm = reactive<{ username: string; password: string; role: UserRole }>({ username: "", password: "", role: "user" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
+const activeView = ref<AppView>("workspace");
+const adminTab = ref<AdminTab>("projects");
 const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
@@ -348,6 +429,8 @@ async function logout(): Promise<void> {
   disconnect();
   currentUser.value = null;
   users.value = [];
+  activeView.value = "workspace";
+  adminTab.value = "projects";
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
 }
@@ -462,6 +545,18 @@ function persistSelectedProject(): void {
   if (selectedProjectId.value) {
     localStorage.setItem("tycho-project-id", selectedProjectId.value);
   }
+}
+
+function showWorkspace(): void {
+  activeView.value = "workspace";
+}
+
+function showManagement(): void {
+  if (!isAdmin.value) {
+    return;
+  }
+  activeView.value = "manage";
+  adminTab.value = "projects";
 }
 
 function createSession(agentId: string): void {

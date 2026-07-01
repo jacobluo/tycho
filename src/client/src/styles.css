@@ -170,6 +170,24 @@ textarea:focus {
   margin: 8px 0 0;
 }
 
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-button {
+  background: transparent;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.nav-button.active {
+  background: var(--panel-strong);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
 .sidebar h2 {
   color: var(--muted);
   font-size: 12px;
@@ -419,6 +437,99 @@ button.danger:hover {
   font-size: 18px;
 }
 
+.management-shell {
+  background: #11151b;
+}
+
+.management-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 22px;
+}
+
+.management-tabs {
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+
+.management-tabs button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--muted);
+  min-height: 42px;
+}
+
+.management-tabs button:hover,
+.management-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.management-panel {
+  max-width: 1120px;
+}
+
+.section-heading {
+  margin-bottom: 18px;
+}
+
+.section-heading h2 {
+  font-size: 20px;
+}
+
+.management-grid {
+  align-items: start;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
+}
+
+.users-management-grid {
+  grid-template-columns: minmax(280px, 340px) minmax(420px, 1fr);
+}
+
+.admin-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.admin-card h3 {
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+
+.project-detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.project-detail-card dl {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.project-detail-card dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+
+.project-detail-card dd {
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .terminal-grid {
   align-content: start;
   display: grid;
@@ -537,6 +648,11 @@ button.danger:hover {
   }
 
   .terminal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .management-grid,
+  .users-management-grid {
     grid-template-columns: 1fr;
   }
 }
