@@ -9,40 +9,35 @@ provider:
 
 > Canonical detailed rule: this file. Codex and Claude reach it through `AGENTS.md`.
 
-## 开发记录
+## 开始前流程
 
-- 多步骤产品或架构变更应先写简短 plan，放在 `docs/plans/`。
-- 长期设计文档放在 `docs/`，不要把临时计划散落在根目录。
+- 开始任何非 trivial 实现前，必须先使用相关 Superpowers skills。
+- 有意义的产品或架构变更至少使用 `superpowers:using-superpowers`、`superpowers:writing-plans`、`superpowers:test-driven-development`。
+- 不确定是否属于有意义变更时，按有意义变更处理。
+- 编码前必须先创建或更新 spec 和 plan：
+  - Spec 放在 `docs/superpowers/specs`。
+  - Plan 放在 `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`。
 - Plan 必须可执行：写清文件、命令、预期测试结果和小粒度 checkbox。
 - 完成任务时同步勾选 plan checkbox，不要让已完成任务保持未勾选。
 - 如果实现偏离 plan，先更新 plan 或补充原因说明，再继续。
-
-小修小补可以直接实现，但最终说明必须写清楚改了什么、验证了什么。
-
-## 工作方式
-
-- 先读 `AGENTS.md` 和相关 `.codebuddy/rules/*.mdc`。
-- 优先遵循现有结构：
-  - runtime config in `src/runtime/`
-  - server/API in `src/server/`
-  - tuimux protocol in `src/tuimux/`
-  - browser UI in `public/`
-- 不要把无关重构混进功能修复。
-- 不要把生成物、构建产物、本地 session 状态提交进源码。
+- 保留已有 spec 和 plan 作为历史记录，除非用户明确要求合并或删除。
+- 事后补 spec/plan 只能算补救，不算正确执行流程。
 
 ## TDD 流程
 
-新增行为默认按 TDD 实现：
+每个 spec 默认按 TDD 实现：
 
-1. 先读相关代码和规则。
+1. 先读相关 spec 和 plan。
 2. 写或更新一个失败测试，表达目标行为。
 3. 运行聚焦测试，确认因预期原因失败。
 4. 做最小生产实现。
 5. 再跑聚焦测试，确认通过。
-6. 完成前跑 `pnpm run verify`。
+6. 完成前跑更广的验证。
+7. 按 plan 的一个 coherent task 提交。
 
 ## 提交纪律
 
-- 每个 coherent task 后可以提交一次，但只有用户明确要求提交时才执行 git commit。
+- 每个 coherent task 后提交一次。
 - 优先使用 `feat: ...`、`fix: ...`、`test: ...`、`docs: ...` 等提交信息。
+- 提交前必须尊重 `.githooks/pre-commit`。
 - 不要为了通过检查而删除、跳过或弱化测试。
