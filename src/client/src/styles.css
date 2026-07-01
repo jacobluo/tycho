@@ -437,6 +437,95 @@ button.danger:hover {
   font-size: 18px;
 }
 
+.header-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.account-menu-wrap {
+  position: relative;
+}
+
+.account-menu-trigger {
+  min-width: 118px;
+}
+
+.account-menu {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 184px;
+  padding: 6px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+}
+
+.account-menu button {
+  background: transparent;
+  border-color: transparent;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+}
+
+.account-menu button:hover {
+  background: var(--panel-strong);
+  border-color: var(--line);
+}
+
+.modal-backdrop {
+  align-items: center;
+  background: rgba(8, 10, 14, 0.72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 24px;
+  position: fixed;
+  z-index: 40;
+}
+
+.modal-panel {
+  background: var(--sidebar);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 380px;
+  padding: 18px;
+  width: 100%;
+}
+
+.modal-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal-panel label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.modal-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
 .management-shell {
   background: #11151b;
 }

@@ -316,6 +316,27 @@ export async function updateUserPassword(userId: string, password: string): Prom
   }
 }
 
+export async function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): Promise<PublicUser> {
+  assertPassword(currentPassword);
+  assertPassword(newPassword);
+  const db = openAuthDb();
+  try {
+    const user = getUserById(db, userId);
+    if (!user || user.status !== "active") {
+      throw new Error(`Unknown user: ${userId}`);
+    }
+    if (!await verifyPassword(currentPassword, user.passwordHash)) {
+      throw new Error("Current password is incorrect");
+    }
+    const passwordHash = await hashPassword(newPassword);
+    db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+      .run(passwordHash, nowIso(), userId);
+    return toPublicUser(getUserById(db, userId)!);
+  } finally {
+    db.close();
+  }
+}
+
 export async function updateUserRole(userId: string, role: UserRole): Promise<PublicUser> {
   assertRole(role);
   const db = openAuthDb();

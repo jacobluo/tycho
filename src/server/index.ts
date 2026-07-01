@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import {
   assignProjectsToUser,
   bootstrapAdminUser,
+  changeOwnPassword,
   createSession,
   createUser,
   deleteSession,
@@ -160,6 +161,22 @@ app.post("/api/auth/logout", async (request, response) => {
   await deleteSession(readCookie(request, sessionCookieName));
   response.setHeader("set-cookie", clearSessionCookie());
   response.json({ ok: true });
+});
+
+app.post("/api/auth/password", async (request, response) => {
+  const user = await requireAuth(request, response);
+  if (!user) {
+    return;
+  }
+  try {
+    const currentPassword = typeof request.body?.currentPassword === "string" ? request.body.currentPassword : "";
+    const newPassword = typeof request.body?.newPassword === "string" ? request.body.newPassword : "";
+    await changeOwnPassword(user.id, currentPassword, newPassword);
+    response.json({ ok: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid password request";
+    response.status(message === "Current password is incorrect" ? 401 : 400).json({ error: message });
+  }
 });
 
 app.get("/api/config", async (request, response) => {

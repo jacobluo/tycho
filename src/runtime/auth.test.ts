@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, test } from "node:test";
 import {
   assignProjectsToUser,
   bootstrapAdminUser,
+  changeOwnPassword,
   createSession,
   createUser,
   deleteSession,
@@ -112,6 +113,20 @@ describe("auth runtime", () => {
     const updated = (await listUsers()).find((candidate) => candidate.id === user.id);
     assert.equal(updated?.role, "admin");
     assert.equal(updated?.status, "disabled");
+  });
+
+  test("changes own password only when current password is correct", async () => {
+    await bootstrapAdminUser();
+    const user = await createUser({ username: "dana", password: "old", role: "user" });
+
+    await assert.rejects(() => changeOwnPassword(user.id, "wrong", "new"), /Current password is incorrect/);
+    assert.equal(await loginUser("dana", "old") !== null, true);
+    assert.equal(await loginUser("dana", "new"), null);
+
+    await changeOwnPassword(user.id, "old", "new");
+
+    assert.equal(await loginUser("dana", "old"), null);
+    assert.equal(await loginUser("dana", "new") !== null, true);
   });
 
   test("soft deletes users and prevents username reuse", async () => {

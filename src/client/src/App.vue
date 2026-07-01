@@ -21,28 +21,11 @@
       <div>
         <div class="brand-row">
           <h1>Tycho</h1>
-          <button class="link-button" type="button" @click="logout">Log Out</button>
         </div>
         <p id="connectionStatus" class="status" :class="{ connected: state.connected }">
           {{ state.connected ? "Connected" : connectionLabel }}
         </p>
-        <p class="current-user">{{ currentUser.username }} / {{ currentUser.role }}</p>
       </div>
-
-      <nav class="sidebar-nav" aria-label="Primary">
-        <button class="nav-button" :class="{ active: activeView === 'workspace' }" type="button" @click="showWorkspace">
-          Workspace
-        </button>
-        <button
-          v-if="isAdmin"
-          class="nav-button"
-          :class="{ active: activeView === 'manage' }"
-          type="button"
-          @click="showManagement"
-        >
-          Manage
-        </button>
-      </nav>
 
       <div class="projects">
         <h2>Project</h2>
@@ -101,7 +84,19 @@
           <h2>Server-side TUIs</h2>
           <p>CodeBuddy / Codex / Claude run inside tuimux on the server.</p>
         </div>
-        <button id="newCodeBuddy" type="button" :disabled="!selectedProjectId" @click="createSession('codebuddy')">New CodeBuddy</button>
+        <div class="header-actions">
+          <button id="newCodeBuddy" type="button" :disabled="!selectedProjectId" @click="createSession('codebuddy')">New CodeBuddy</button>
+          <div class="account-menu-wrap">
+            <button class="account-menu-trigger" type="button" @click="toggleAccountMenu">
+              {{ currentUser.username }} / {{ currentUser.role }}
+            </button>
+            <div v-if="accountMenuOpen" class="account-menu" role="menu">
+              <button role="menuitem" type="button" @click="openPasswordDialog">Change Password</button>
+              <button v-if="isAdmin" role="menuitem" type="button" @click="openManagementFromMenu">Admin Management</button>
+              <button role="menuitem" type="button" @click="logout">Log Out</button>
+            </div>
+          </div>
+        </div>
       </header>
 
       <div id="terminalGrid" class="terminal-grid" :class="{ empty: terminalEntries.length === 0 }">
@@ -144,7 +139,19 @@
           <h2>Admin Management</h2>
           <p>Manage project access and users without crowding the runtime workspace.</p>
         </div>
-        <button type="button" @click="showWorkspace">Back to Workspace</button>
+        <div class="header-actions">
+          <button type="button" @click="showWorkspace">Back to Workspace</button>
+          <div class="account-menu-wrap">
+            <button class="account-menu-trigger" type="button" @click="toggleAccountMenu">
+              {{ currentUser.username }} / {{ currentUser.role }}
+            </button>
+            <div v-if="accountMenuOpen" class="account-menu" role="menu">
+              <button role="menuitem" type="button" @click="openPasswordDialog">Change Password</button>
+              <button v-if="isAdmin" role="menuitem" type="button" @click="openManagementFromMenu">Admin Management</button>
+              <button role="menuitem" type="button" @click="logout">Log Out</button>
+            </div>
+          </div>
+        </div>
       </header>
 
       <div class="management-body">
@@ -290,6 +297,25 @@
         </div>
       </div>
     </section>
+
+    <div v-if="passwordDialogOpen" class="modal-backdrop">
+      <form class="modal-panel" @submit.prevent="submitPasswordChange">
+        <div class="modal-header">
+          <h2>Change Password</h2>
+          <button class="link-button" type="button" @click="closePasswordDialog">Close</button>
+        </div>
+        <label>
+          <span>Current Password</span>
+          <input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" required />
+        </label>
+        <label>
+          <span>New Password</span>
+          <input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" required />
+        </label>
+        <button type="submit" :disabled="passwordFormBusy">Save Password</button>
+        <p id="passwordFormStatus" class="form-status" :class="passwordFormTone">{{ passwordFormStatus }}</p>
+      </form>
+    </div>
   </main>
 </template>
 
@@ -349,19 +375,25 @@ const userEdits = reactive<Record<string, { role: UserRole; password: string; pr
 const loginForm = reactive({ username: "admin", password: "admin" });
 const projectForm = reactive({ name: "", path: "", description: "" });
 const newUserForm = reactive<{ username: string; password: string; role: UserRole }>({ username: "", password: "", role: "user" });
+const passwordForm = reactive({ currentPassword: "", newPassword: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
 const activeView = ref<AppView>("workspace");
 const adminTab = ref<AdminTab>("projects");
+const accountMenuOpen = ref(false);
+const passwordDialogOpen = ref(false);
 const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
 const userFormStatus = ref("");
 const userFormTone = ref("");
+const passwordFormStatus = ref("");
+const passwordFormTone = ref("");
 const loginBusy = ref(false);
 const projectFormBusy = ref(false);
 const projectDeleteBusy = ref(false);
 const userFormBusy = ref(false);
+const passwordFormBusy = ref(false);
 const socket = ref<WebSocket | null>(null);
 const reconnectTimer = ref<number | null>(null);
 const connectionLabel = ref("Connecting");
@@ -431,6 +463,8 @@ async function logout(): Promise<void> {
   users.value = [];
   activeView.value = "workspace";
   adminTab.value = "projects";
+  accountMenuOpen.value = false;
+  passwordDialogOpen.value = false;
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
 }
@@ -559,8 +593,50 @@ function showManagement(): void {
   adminTab.value = "projects";
 }
 
+function toggleAccountMenu(): void {
+  accountMenuOpen.value = !accountMenuOpen.value;
+}
+
+function openManagementFromMenu(): void {
+  accountMenuOpen.value = false;
+  showManagement();
+}
+
+function openPasswordDialog(): void {
+  accountMenuOpen.value = false;
+  passwordForm.currentPassword = "";
+  passwordForm.newPassword = "";
+  setPasswordFormStatus("");
+  passwordDialogOpen.value = true;
+}
+
+function closePasswordDialog(): void {
+  passwordDialogOpen.value = false;
+  passwordForm.currentPassword = "";
+  passwordForm.newPassword = "";
+  setPasswordFormStatus("");
+}
+
 function createSession(agentId: string): void {
   send({ type: "create_session", agentId, projectId: selectedProjectId.value });
+}
+
+async function submitPasswordChange(): Promise<void> {
+  passwordFormBusy.value = true;
+  setPasswordFormStatus("Saving password");
+  try {
+    await requestJson<{ ok: boolean }>("/api/auth/password", {
+      method: "POST",
+      body: JSON.stringify(passwordForm)
+    });
+    passwordForm.currentPassword = "";
+    passwordForm.newPassword = "";
+    setPasswordFormStatus("Password changed", "success");
+  } catch (error) {
+    setPasswordFormStatus(error instanceof Error ? error.message : "Could not change password", "error");
+  } finally {
+    passwordFormBusy.value = false;
+  }
 }
 
 async function submitProjectForm(): Promise<void> {
@@ -678,6 +754,11 @@ function setProjectFormStatus(message: string, tone = ""): void {
 function setUserFormStatus(message: string, tone = ""): void {
   userFormStatus.value = message;
   userFormTone.value = tone;
+}
+
+function setPasswordFormStatus(message: string, tone = ""): void {
+  passwordFormStatus.value = message;
+  passwordFormTone.value = tone;
 }
 
 function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {

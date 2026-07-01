@@ -16,18 +16,32 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
-  await expect(page.getByRole("heading", { name: "Tycho" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `${username} / ${username === "admin" ? "admin" : "user"}` })).toBeVisible();
+}
+
+async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByRole("button", { name: /admin \/ admin|alice \/ user/ }).click();
+}
+
+async function logout(page: import("@playwright/test").Page): Promise<void> {
+  const logoutItem = page.getByRole("menuitem", { name: "Log Out" });
+  if (await logoutItem.count() === 0) {
+    await openAccountMenu(page);
+  }
+  await logoutItem.click();
 }
 
 async function openProjectManagement(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: "Manage" }).click();
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Admin Management" }).click();
   await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
   await page.getByRole("tab", { name: "Project Management" }).click();
   await expect(page.getByRole("heading", { name: "Project Management" })).toBeVisible();
 }
 
 async function openUserManagement(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: "Manage" }).click();
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Admin Management" }).click();
   await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
   await page.getByRole("tab", { name: "User Management" }).click();
   await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
@@ -66,6 +80,37 @@ test("adds and deletes a managed project", async ({ page }) => {
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project deleted");
   await expect(page.locator("#projectSelect")).not.toHaveValue("e2e-managed-project");
+});
+
+test("changes password from the account menu", async ({ page }) => {
+  await login(page, "admin", "admin");
+
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Change Password" }).click();
+  await expect(page.getByRole("heading", { name: "Change Password" })).toBeVisible();
+  await page.getByLabel("Current Password").fill("admin");
+  await page.getByLabel("New Password").fill("changed-admin");
+  await page.getByRole("button", { name: "Save Password" }).click();
+  await expect(page.locator("#passwordFormStatus")).toHaveText("Password changed");
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await logout(page);
+  await page.getByLabel("Username").fill("admin");
+  await page.getByLabel("Password").fill("admin");
+  await page.getByRole("button", { name: "Log In" }).click();
+  await expect(page.locator(".login-panel .form-status")).toHaveText("Invalid username or password");
+
+  await page.getByLabel("Password").fill("changed-admin");
+  await page.getByRole("button", { name: "Log In" }).click();
+  await expect(page.getByRole("button", { name: "admin / admin" })).toBeVisible();
+
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Change Password" }).click();
+  await page.getByLabel("Current Password").fill("changed-admin");
+  await page.getByLabel("New Password").fill("admin");
+  await page.getByRole("button", { name: "Save Password" }).click();
+  await expect(page.locator("#passwordFormStatus")).toHaveText("Password changed");
+  await page.getByRole("button", { name: "Close" }).click();
 });
 
 test("boots the Vue Vite client", async ({ page }) => {
@@ -112,12 +157,14 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await aliceRow.getByRole("button", { name: "Save Projects" }).click();
   await expect(aliceRow.locator(".user-status-message")).toHaveText("Projects saved");
 
-  await page.getByRole("button", { name: "Log Out" }).click();
+  await logout(page);
   await login(page, "alice", "secret");
 
   await expect(page.locator("#projectSelect")).toHaveValue("assigned-project");
   await expect(page.locator("#projectDescription")).toHaveText("Visible to assigned user");
-  await expect(page.getByRole("button", { name: "Manage" })).toHaveCount(0);
+  await openAccountMenu(page);
+  await expect(page.getByRole("menuitem", { name: "Admin Management" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Project Management" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "User Management" })).toHaveCount(0);
 
@@ -131,7 +178,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   });
   expect(status).toBe(403);
 
-  await page.getByRole("button", { name: "Log Out" }).click();
+  await logout(page);
   await login(page, "admin", "admin");
   await openProjectManagement(page);
   await page.locator("#projectSelect").selectOption("assigned-project");
