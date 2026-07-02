@@ -164,6 +164,42 @@ test("shows a validation error for an invalid project path", async ({ page }) =>
   await expect(page.getByRole("row", { name: /Missing Project/ })).toHaveCount(0);
 });
 
+test("directory browser API is admin-only and root constrained", async ({ page }) => {
+  await login(page, "admin", "admin");
+  const adminPayload = await page.evaluate(async () => {
+    const response = await fetch("/api/directories");
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type") || "",
+      body: await response.text()
+    };
+  });
+  expect(adminPayload.status).toBe(200);
+  expect(adminPayload.contentType).toContain("application/json");
+  expect(JSON.parse(adminPayload.body).roots.length).toBeGreaterThan(0);
+
+  const outsideStatus = await page.evaluate(async () => {
+    const response = await fetch(`/api/directories?path=${encodeURIComponent("/")}`);
+    return response.status;
+  });
+  expect(outsideStatus).toBe(403);
+
+  await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("New Username").fill("directory-user");
+  await page.getByLabel("New Password").fill("directory-password");
+  await page.getByRole("button", { name: "Save User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
+
+  await logout(page);
+  await login(page, "directory-user", "directory-password");
+  const userStatus = await page.evaluate(async () => {
+    const response = await fetch("/api/directories");
+    return response.status;
+  });
+  expect(userStatus).toBe(403);
+});
+
 test("admin assigns a project and ordinary user cannot manage projects", async ({ page }) => {
   const projectPath = makeProjectDir();
 

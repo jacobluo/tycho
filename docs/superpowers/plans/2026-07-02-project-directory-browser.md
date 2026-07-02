@@ -183,7 +183,7 @@ git commit -m "feat: add safe directory browser runtime"
 - Modify: `src/runtime/directory-browser.test.ts`
 - Modify: `e2e/project-management.spec.ts`
 
-- [ ] **Step 1: Add failing E2E API assertions**
+- [x] **Step 1: Add failing E2E API assertions**
 
 In `e2e/project-management.spec.ts`, add a test that:
 
@@ -221,7 +221,7 @@ test("directory browser API is admin-only and root constrained", async ({ page }
 });
 ```
 
-- [ ] **Step 2: Run focused E2E to verify RED**
+- [x] **Step 2: Run focused E2E to verify RED**
 
 Run:
 
@@ -231,7 +231,7 @@ pnpm exec playwright test e2e/project-management.spec.ts --grep "directory brows
 
 Expected: FAIL because `/api/directories` does not exist.
 
-- [ ] **Step 3: Implement `GET /api/directories`**
+- [x] **Step 3: Implement `GET /api/directories`**
 
 Modify `src/server/index.ts`:
 
@@ -269,7 +269,7 @@ app.get("/api/directories", async (request, response) => {
 });
 ```
 
-- [ ] **Step 4: Run focused E2E to verify GREEN**
+- [x] **Step 4: Run focused E2E to verify GREEN**
 
 Run:
 
@@ -279,7 +279,7 @@ pnpm exec playwright test e2e/project-management.spec.ts --grep "directory brows
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit API slice**
+- [x] **Step 5: Commit API slice**
 
 Run:
 
