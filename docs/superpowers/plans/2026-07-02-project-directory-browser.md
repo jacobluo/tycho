@@ -297,7 +297,7 @@ git commit -m "feat: expose admin directory browser API"
 - Modify: `src/client/src/styles.css`
 - Modify: `e2e/project-management.spec.ts`
 
-- [ ] **Step 1: Add failing E2E Browse workflow**
+- [x] **Step 1: Add failing E2E Browse workflow**
 
 Update the project add/edit E2E flow so it:
 
@@ -316,7 +316,7 @@ PROJECT_BROWSER_ROOTS=${tmpdir()}
 
 Then create E2E project directories under `tmpdir()` as the existing tests already do.
 
-- [ ] **Step 2: Run focused E2E to verify RED**
+- [x] **Step 2: Run focused E2E to verify RED**
 
 Run:
 
@@ -326,7 +326,7 @@ pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and delete
 
 Expected: FAIL because the Browse button and dialog do not exist.
 
-- [ ] **Step 3: Add client types**
+- [x] **Step 3: Add client types**
 
 Modify `src/client/src/client-types.ts`:
 
@@ -340,7 +340,7 @@ export type DirectoryBrowserResponse = {
 };
 ```
 
-- [ ] **Step 4: Create directory picker component**
+- [x] **Step 4: Create directory picker component**
 
 Create `src/client/src/components/DirectoryPickerDialog.vue` with props:
 
@@ -363,7 +363,7 @@ Component behavior:
 - Disable `Use This Folder` until a selected path exists.
 - On `select`, emit the selected path and close in the parent.
 
-- [ ] **Step 5: Wire Project Management**
+- [x] **Step 5: Wire Project Management**
 
 Modify `ProjectManagementView.vue`:
 
@@ -391,7 +391,7 @@ function selectProjectDirectory(path: string): void {
 }
 ```
 
-- [ ] **Step 6: Add styles**
+- [x] **Step 6: Add styles**
 
 Modify `src/client/src/styles.css` with classes:
 
@@ -405,7 +405,7 @@ Modify `src/client/src/styles.css` with classes:
 
 Keep the existing dark admin palette and do not introduce a new visual system.
 
-- [ ] **Step 7: Run focused E2E to verify GREEN**
+- [x] **Step 7: Run focused E2E to verify GREEN**
 
 Run:
 
@@ -415,7 +415,7 @@ pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and delete
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit UI slice**
+- [x] **Step 8: Commit UI slice**
 
 Run:
 

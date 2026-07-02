@@ -71,7 +71,10 @@
         </label>
         <label>
           <span>Local Path</span>
-          <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
+          <span class="path-input-row">
+            <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
+            <button type="button" @click="directoryPickerOpen = true">Browse</button>
+          </span>
         </label>
         <label>
           <span>Description</span>
@@ -92,11 +95,19 @@
         </div>
       </dl>
     </aside>
+
+    <DirectoryPickerDialog
+      :open="directoryPickerOpen"
+      :initial-path="projectForm.path"
+      @close="directoryPickerOpen = false"
+      @select="selectProjectDirectory"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
+import DirectoryPickerDialog from "../components/DirectoryPickerDialog.vue";
 import type { ProjectConfig, PublicRuntimeConfig } from "../client-types";
 
 const props = defineProps<{
@@ -121,6 +132,7 @@ const emit = defineEmits<{
 const selectedProjectIds = ref<string[]>([]);
 const drawerMode = ref<"create" | "edit" | null>(null);
 const drawerProjectId = ref("");
+const directoryPickerOpen = ref(false);
 
 const selectedProjects = computed(() => props.config.projects.filter((project) => selectedProjectIds.value.includes(project.id)));
 const canEdit = computed(() => selectedProjects.value.length === 1);
@@ -179,6 +191,7 @@ function inspectProject(project: ProjectConfig): void {
 
 function closeDrawer(): void {
   drawerMode.value = null;
+  directoryPickerOpen.value = false;
 }
 
 function deleteSelection(): void {
@@ -191,5 +204,10 @@ function saveProject(): void {
     return;
   }
   emit("submit-project-form");
+}
+
+function selectProjectDirectory(path: string): void {
+  props.projectForm.path = path;
+  directoryPickerOpen.value = false;
 }
 </script>
