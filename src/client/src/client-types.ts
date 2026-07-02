@@ -23,7 +23,14 @@ export type PublicUser = {
   projectIds: string[];
 };
 export type PublicRuntimeConfig = { agents: AgentConfig[]; projects: ProjectConfig[]; defaultProjectId: string; webPort: number };
-export type AgentEntry = AgentConfig & { autostart: boolean; restart_on_exit: boolean; env?: Record<string, string> };
+export type AgentEntry = AgentConfig & {
+  autostart: boolean;
+  restart_on_exit: boolean;
+  projectId?: string;
+  projectName?: string;
+  projectPath?: string;
+  env?: Record<string, string>;
+};
 export type TuimuxPane = { paneId: string; entry: AgentEntry; status: "running" | "stopped" | "error"; buffer: string; runId?: number };
 export type TuimuxWindow = { id: string; title: string; layout: unknown; activePaneId: string };
 export type TuimuxState = {
