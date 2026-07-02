@@ -56,6 +56,7 @@ Admin routes:
 - User Management shows a user table first, with toolbar actions for Add, Edit, Enable/Disable, and Delete.
 - Add and edit actions open a focused overlay/drawer so the user can keep table context.
 - Project Management does not expose internal `managed` source metadata as a table column; edit/delete availability communicates what the admin can do.
+- Project Management does not render a separate selected-project summary; the table row and edit drawer carry path and description context.
 - It does not show the workspace agent/session/terminal sidebar.
 
 ## Component Plan

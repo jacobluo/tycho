@@ -53,16 +53,6 @@
         </tbody>
       </table>
 
-      <dl v-if="selectedProject" class="selection-summary">
-        <div>
-          <dt>Selected Path</dt>
-          <dd id="projectPath">{{ selectedProject.path }}</dd>
-        </div>
-        <div>
-          <dt>Selected Description</dt>
-          <dd id="projectDescription">{{ selectedProject.description || "No description" }}</dd>
-        </div>
-      </dl>
     </div>
 
     <aside v-if="drawerMode" class="admin-drawer" aria-label="Project editor">

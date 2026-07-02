@@ -84,12 +84,14 @@ test("adds and deletes a managed project", async ({ page }) => {
   await page.getByRole("button", { name: "Save Project" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project added");
-  await expect(page.getByRole("row", { name: /E2E Managed Project/ })).toBeVisible();
-  await expect(page.locator("#projectPath")).toHaveText(projectPath);
-  await expect(page.locator("#projectDescription")).toHaveText("Created by Playwright");
+  await expect(page.getByRole("row", { name: new RegExp(`E2E Managed Project.*${projectPath}.*Created by Playwright`) })).toBeVisible();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
   await page.getByRole("checkbox", { name: "Select E2E Managed Project" }).check();
   await expect(page.getByRole("button", { name: "Edit Project" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Delete Selected" })).toBeEnabled();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Edit Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("E2E Edited Project");
@@ -98,9 +100,9 @@ test("adds and deletes a managed project", async ({ page }) => {
   await page.getByRole("button", { name: "Save Project" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project updated");
-  await expect(page.getByRole("row", { name: /E2E Edited Project/ })).toBeVisible();
-  await expect(page.locator("#projectPath")).toHaveText(editedProjectPath);
-  await expect(page.locator("#projectDescription")).toHaveText("Edited by Playwright");
+  await expect(page.getByRole("row", { name: new RegExp(`E2E Edited Project.*${editedProjectPath}.*Edited by Playwright`) })).toBeVisible();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
 
   page.on("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete Selected" }).click();

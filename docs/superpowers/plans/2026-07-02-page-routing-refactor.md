@@ -486,3 +486,53 @@ git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/s
 git commit -m "fix: hide internal project source column"
 git push
 ```
+
+### Task 8: Remove Redundant Selected Project Summary
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md`
+- Modify: `docs/superpowers/plans/2026-07-02-page-routing-refactor.md`
+- Modify: `e2e/project-management.spec.ts`
+- Modify: `src/client/src/views/ProjectManagementView.vue`
+- Modify: `src/client/src/styles.css`
+
+- [x] **Step 1: Update spec and plan**
+
+Record that Project Management should not render the separate selected-project summary block below the table. Path and description stay visible in the table row and edit drawer.
+
+- [x] **Step 2: Write failing E2E assertion**
+
+Update `e2e/project-management.spec.ts` so selecting or editing a project expects no `Selected Path` or `Selected Description` summary, while still verifying path and description in the project table row.
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+```
+
+Expected: FAIL because the current page still renders the selected-project summary.
+
+- [x] **Step 3: Remove selected summary UI**
+
+Update `ProjectManagementView.vue` to remove the summary block below the table. Remove unused `.selection-summary` styles from `src/client/src/styles.css`.
+
+- [x] **Step 4: Verify**
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+scripts/verify
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit and push**
+
+Run:
+
+```bash
+git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/superpowers/plans/2026-07-02-page-routing-refactor.md e2e/project-management.spec.ts src/client/src/views/ProjectManagementView.vue src/client/src/styles.css
+git commit -m "fix: remove selected project summary"
+git push
+```
