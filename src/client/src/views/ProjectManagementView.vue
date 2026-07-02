@@ -2,7 +2,7 @@
   <main class="admin-content">
     <div class="section-heading">
       <h2>Project Management</h2>
-      <p>Review managed projects first, then add, inspect, or remove entries from the toolbar.</p>
+      <p>Review projects first, then add, inspect, or remove entries from the toolbar.</p>
     </div>
 
     <div class="admin-list-shell">
@@ -27,7 +27,6 @@
             <th>Name</th>
             <th>Path</th>
             <th>Description</th>
-            <th>Managed</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -47,7 +46,6 @@
             </td>
             <td class="path-cell">{{ project.path }}</td>
             <td>{{ project.description || "No description" }}</td>
-            <td>{{ project.managed ? "Yes" : "No" }}</td>
             <td class="row-actions">
               <button type="button" @click="inspectProject(project)">Edit</button>
             </td>
@@ -71,7 +69,7 @@
       <div class="drawer-header">
         <div>
           <h3>{{ drawerMode === "create" ? "Add Project" : "Project Details" }}</h3>
-          <p>{{ drawerMode === "create" ? "Register a local project for Tycho." : "Update this managed project's metadata." }}</p>
+          <p>{{ drawerMode === "create" ? "Register a local project for Tycho." : "Update this project's metadata." }}</p>
         </div>
         <button class="link-button" type="button" @click="closeDrawer">Close</button>
       </div>
@@ -90,7 +88,7 @@
           <textarea v-model="projectForm.description" name="description" rows="4"></textarea>
         </label>
         <button type="submit" :disabled="projectFormBusy || (drawerMode === 'edit' && !activeDrawerProject?.managed)">Save Project</button>
-        <p v-if="drawerMode === 'edit' && !activeDrawerProject?.managed" class="form-status error">Only managed projects can be edited.</p>
+        <p v-if="drawerMode === 'edit' && !activeDrawerProject?.managed" class="form-status error">Only projects added in Tycho can be edited.</p>
       </form>
 
       <dl v-if="activeDrawerProject" class="drawer-details">

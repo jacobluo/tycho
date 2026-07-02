@@ -39,6 +39,7 @@ async function openProjectManagement(page: import("@playwright/test").Page): Pro
   await expect(page.locator(".workspace-sidebar")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Project Management" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Projects" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Managed" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Edit Project" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
   await expect(page.locator("#projectForm")).toHaveCount(0);

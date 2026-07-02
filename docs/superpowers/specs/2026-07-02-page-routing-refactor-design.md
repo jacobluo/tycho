@@ -55,6 +55,7 @@ Admin routes:
 - Project Management shows a project table first, with toolbar actions for Add, Edit, and Delete.
 - User Management shows a user table first, with toolbar actions for Add, Edit, Enable/Disable, and Delete.
 - Add and edit actions open a focused overlay/drawer so the user can keep table context.
+- Project Management does not expose internal `managed` source metadata as a table column; edit/delete availability communicates what the admin can do.
 - It does not show the workspace agent/session/terminal sidebar.
 
 ## Component Plan
@@ -82,7 +83,7 @@ The refactor can keep state and API functions in `App.vue` for this slice. Movin
 - Admin list checkboxes support multi-select.
 - Edit is enabled only when exactly one row is selected.
 - Managed project editing updates project name, local path, and description through an admin-only server API.
-- Delete supports one or more selected rows, but non-managed base projects remain protected.
+- Delete supports one or more selected rows, but non-managed base projects remain protected internally.
 - User project assignment lives in the user edit overlay, not as always-visible controls on every user row.
 
 ## Testing

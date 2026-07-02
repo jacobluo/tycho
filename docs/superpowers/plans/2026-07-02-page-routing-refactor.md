@@ -437,3 +437,52 @@ git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/s
 git commit -m "feat: support editing managed projects"
 git push
 ```
+
+### Task 7: Hide Internal Project Source Metadata
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md`
+- Modify: `docs/superpowers/plans/2026-07-02-page-routing-refactor.md`
+- Modify: `e2e/project-management.spec.ts`
+- Modify: `src/client/src/views/ProjectManagementView.vue`
+
+- [x] **Step 1: Update spec and plan**
+
+Record that Project Management should not show the internal `managed` source flag as a visible table column. The app should still use it internally to protect configured projects.
+
+- [x] **Step 2: Write failing E2E assertion**
+
+Update `e2e/project-management.spec.ts` so Project Management expects no `Managed` column header.
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+```
+
+Expected: FAIL because the current table still renders the `Managed` header.
+
+- [x] **Step 3: Remove visible Managed column**
+
+Update `ProjectManagementView.vue` to remove the `Managed` table header and cell while keeping `project.managed` for edit/delete permission checks.
+
+- [x] **Step 4: Verify**
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+scripts/verify
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Commit and push**
+
+Run:
+
+```bash
+git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/superpowers/plans/2026-07-02-page-routing-refactor.md e2e/project-management.spec.ts src/client/src/views/ProjectManagementView.vue
+git commit -m "fix: hide internal project source column"
+git push
+```
