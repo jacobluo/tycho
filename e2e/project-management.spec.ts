@@ -242,6 +242,22 @@ test("workspace interactions: account menu closes when clicking outside", async 
   await expect(page.getByRole("menuitem", { name: "Log Out" })).toHaveCount(0);
 });
 
+test("interface style switch: toggles reader style and persists across reload", async ({ page }) => {
+  await login(page, "admin", "admin");
+
+  const styleGroup = page.getByRole("group", { name: "Interface style" });
+  await styleGroup.getByRole("button", { name: "Reader" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "reader");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("tycho-interface-style")))
+    .toBe("reader");
+
+  await page.reload();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "reader");
+  await styleGroup.getByRole("button", { name: "Dark" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "dark");
+});
+
 test("workspace interactions: creating a session asks for a name and sends it", async ({ page }) => {
   await page.addInitScript(() => {
     window.__TYCHO_WS_MESSAGES__ = [];

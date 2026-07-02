@@ -16,7 +16,7 @@
     </form>
   </main>
 
-  <main v-else class="app-shell routed-shell">
+  <main v-else class="app-shell routed-shell" :data-interface-style="interfaceStyle">
     <header class="app-topbar">
       <div class="brand-row">
         <h1>Tycho</h1>
@@ -33,6 +33,24 @@
         </label>
         <div class="header-actions">
           <RouterLink v-if="!isWorkspaceRoute" class="button-link" to="/">Workspace</RouterLink>
+          <div class="style-switcher" role="group" aria-label="Interface style">
+            <button
+              type="button"
+              :class="{ active: interfaceStyle === 'dark' }"
+              :aria-pressed="interfaceStyle === 'dark'"
+              @click="setInterfaceStyle('dark')"
+            >
+              Dark
+            </button>
+            <button
+              type="button"
+              :class="{ active: interfaceStyle === 'reader' }"
+              :aria-pressed="interfaceStyle === 'reader'"
+              @click="setInterfaceStyle('reader')"
+            >
+              Reader
+            </button>
+          </div>
           <AccountMenu
             :current-user="currentUser"
             :is-admin="isAdmin"
@@ -159,6 +177,8 @@ import type {
   UserRole
 } from "./client-types";
 
+type InterfaceStyle = "dark" | "reader";
+
 const route = useRoute();
 const router = useRouter();
 const config = reactive<PublicRuntimeConfig>({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
@@ -179,6 +199,7 @@ const passwordForm = reactive({ currentPassword: "", newPassword: "" });
 const sessionForm = reactive({ name: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
+const interfaceStyle = ref<InterfaceStyle>(readStoredInterfaceStyle());
 const layoutMode = ref<SessionLayoutMode>(readStoredLayoutMode());
 const activeSlotId = ref<SessionSlotId>(readStoredActiveSlotId());
 const viewportWidth = ref(window.innerWidth);
@@ -281,6 +302,20 @@ function isLayoutMode(value: string | null): value is SessionLayoutMode {
 
 function isSlotId(value: string | null): value is SessionSlotId {
   return allSessionSlotIds.includes(value as SessionSlotId);
+}
+
+function isInterfaceStyle(value: string | null): value is InterfaceStyle {
+  return value === "dark" || value === "reader";
+}
+
+function readStoredInterfaceStyle(): InterfaceStyle {
+  const stored = localStorage.getItem("tycho-interface-style");
+  return isInterfaceStyle(stored) ? stored : "dark";
+}
+
+function setInterfaceStyle(style: InterfaceStyle): void {
+  interfaceStyle.value = style;
+  localStorage.setItem("tycho-interface-style", style);
 }
 
 function readStoredLayoutMode(): SessionLayoutMode {
