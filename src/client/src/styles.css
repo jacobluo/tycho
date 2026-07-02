@@ -612,7 +612,7 @@ button.danger:hover {
   justify-content: center;
   padding: 24px;
   position: fixed;
-  z-index: 40;
+  z-index: 80;
 }
 
 .modal-panel {
@@ -750,6 +750,16 @@ button.danger:hover {
 .modal-header h2 {
   font-size: 18px;
   margin: 0;
+}
+
+.modal-header p {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.session-dialog {
+  max-width: 360px;
 }
 
 .management-shell {

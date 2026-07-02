@@ -67,7 +67,7 @@
         :user-form-busy="userFormBusy"
         :pane-for-window="paneForWindow"
         @persist-selected-project="persistSelectedProject"
-        @create-session="createSession"
+        @create-session="openSessionDialog"
         @focus-window="focusWindow"
         @close-window="closeWindow"
         @focus-pane="focusPane"
@@ -95,6 +95,14 @@
       @close="closePasswordDialog"
       @submit="submitPasswordChange"
     />
+
+    <CreateSessionDialog
+      :open="sessionDialogOpen"
+      :agent-name="pendingSessionAgent?.name || 'Agent'"
+      :form="sessionForm"
+      @close="closeSessionDialog"
+      @submit="submitSessionDialog"
+    />
   </main>
 </template>
 
@@ -105,6 +113,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
 import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
+import CreateSessionDialog from "./components/CreateSessionDialog.vue";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -136,9 +145,12 @@ const loginForm = reactive({ username: "admin", password: "admin" });
 const projectForm = reactive({ name: "", path: "", description: "" });
 const newUserForm = reactive<{ username: string; password: string; role: UserRole }>({ username: "", password: "", role: "user" });
 const passwordForm = reactive({ currentPassword: "", newPassword: "" });
+const sessionForm = reactive({ name: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
 const passwordDialogOpen = ref(false);
+const sessionDialogOpen = ref(false);
+const pendingSessionAgentId = ref<string | null>(null);
 const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
@@ -168,6 +180,7 @@ const routeTitle = computed(() => {
   return "Workspace";
 });
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
+const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
@@ -229,6 +242,7 @@ async function logout(): Promise<void> {
   currentUser.value = null;
   users.value = [];
   passwordDialogOpen.value = false;
+  closeSessionDialog();
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
   await router.push("/");
@@ -367,8 +381,26 @@ function closePasswordDialog(): void {
   setPasswordFormStatus("");
 }
 
-function createSession(agentId: string): void {
-  send({ type: "create_session", agentId, projectId: selectedProjectId.value });
+function openSessionDialog(agentId: string): void {
+  pendingSessionAgentId.value = agentId;
+  sessionForm.name = "";
+  sessionDialogOpen.value = true;
+}
+
+function closeSessionDialog(): void {
+  sessionDialogOpen.value = false;
+  pendingSessionAgentId.value = null;
+  sessionForm.name = "";
+}
+
+function submitSessionDialog(): void {
+  const agentId = pendingSessionAgentId.value;
+  const label = sessionForm.name.trim();
+  if (!agentId || label.length === 0) {
+    return;
+  }
+  send({ type: "create_session", agentId, projectId: selectedProjectId.value, label });
+  closeSessionDialog();
 }
 
 async function submitPasswordChange(): Promise<void> {
@@ -558,8 +590,12 @@ function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
 }
 
 function focusWindow(windowId: string): void {
-  document.querySelector(`[data-window-id="${windowId}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   send({ type: "focus_window", windowId });
+  const windowState = state.windows.find((candidate) => candidate.id === windowId);
+  const pane = windowState ? paneForWindow(windowState) : undefined;
+  if (pane) {
+    focusTerminal(pane.paneId);
+  }
 }
 
 function closeWindow(windowId: string): void {
@@ -569,7 +605,7 @@ function closeWindow(windowId: string): void {
 function focusPane(entry: TerminalEntry): void {
   activePaneId.value = entry.pane.paneId;
   send({ type: "focus_window", windowId: entry.windowState.id });
-  terminals.get(entry.pane.paneId)?.term.focus();
+  focusTerminal(entry.pane.paneId);
 }
 
 function handleCardPointerDown(event: PointerEvent, entry: TerminalEntry): void {
@@ -591,6 +627,16 @@ function setTerminalHost(entry: TerminalEntry, element: Element | ComponentPubli
     disposeTerminal(entry.pane.paneId);
   }
   mountTerminal(entry, element);
+}
+
+function focusTerminal(paneId: string): void {
+  void nextTick(() => {
+    const record = terminals.get(paneId);
+    if (!record) {
+      return;
+    }
+    record.term.focus();
+  });
 }
 
 function mountTerminal(entry: TerminalEntry, host: HTMLElement): void {

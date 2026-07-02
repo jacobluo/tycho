@@ -2,6 +2,12 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+declare global {
+  interface Window {
+    __TYCHO_WS_MESSAGES__?: string[];
+  }
+}
+
 const tempDirs: string[] = [];
 const directoryBrowserRoot = resolve(".playwright-mcp/directory-root");
 
@@ -37,6 +43,29 @@ async function login(page: import("@playwright/test").Page, username: string, pa
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
   await page.getByRole("button", { name: /.+ (管理员|普通用户)/ }).click();
+}
+
+async function waitForWorkspaceConnection(page: import("@playwright/test").Page): Promise<void> {
+  await expect(page.locator("#connectionStatus")).toHaveText("Connected");
+}
+
+async function startNamedSession(page: import("@playwright/test").Page, name: string): Promise<void> {
+  await waitForWorkspaceConnection(page);
+  await page.getByRole("button", { name: /CodeBuddy/ }).click();
+  await expect(page.getByRole("heading", { name: "Name Session" })).toBeVisible();
+  await page.getByLabel("Session Name").fill(name);
+  await page.getByRole("button", { name: "Start Session" }).click();
+  await expect(page.getByRole("heading", { name: "Name Session" })).toHaveCount(0);
+  await expect(page.locator(".terminal-card", { hasText: name })).toBeVisible();
+}
+
+async function closeSession(page: import("@playwright/test").Page, name: string): Promise<void> {
+  const card = page.locator(".terminal-card", { hasText: name });
+  if (await card.count() === 0) {
+    return;
+  }
+  await card.getByRole("button", { name: "Close" }).click();
+  await expect(card).toHaveCount(0);
 }
 
 async function logout(page: import("@playwright/test").Page): Promise<void> {
@@ -164,6 +193,71 @@ test("boots the Vue Vite client", async ({ page }) => {
   await page.goto("/");
 
   await expect.poll(() => page.evaluate(() => window.__TYCHO_CLIENT__)).toBe("vue-vite");
+});
+
+test("workspace interactions: account menu closes when clicking outside", async ({ page }) => {
+  await login(page, "admin", "admin");
+
+  await openAccountMenu(page);
+  await expect(page.getByRole("menuitem", { name: "Log Out" })).toBeVisible();
+  await page.getByRole("heading", { name: "Server-side TUIs" }).click();
+
+  await expect(page.getByRole("menuitem", { name: "Log Out" })).toHaveCount(0);
+});
+
+test("workspace interactions: creating a session asks for a name and sends it", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__TYCHO_WS_MESSAGES__ = [];
+    const originalSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function patchedSend(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+      window.__TYCHO_WS_MESSAGES__?.push(typeof data === "string" ? data : "[binary]");
+      return originalSend.call(this, data);
+    };
+  });
+
+  await login(page, "admin", "admin");
+  await waitForWorkspaceConnection(page);
+  await page.getByRole("button", { name: /CodeBuddy/ }).click();
+  await expect(page.getByRole("heading", { name: "Name Session" })).toBeVisible();
+  await page.getByLabel("Session Name").fill("Focused Build");
+  await page.getByRole("button", { name: "Start Session" }).click();
+
+  await expect(page.locator(".terminal-card", { hasText: "Focused Build" })).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (window.__TYCHO_WS_MESSAGES__ || []).some((message) => {
+          try {
+            const payload = JSON.parse(message) as Record<string, unknown>;
+            return payload.type === "create_session" && payload.label === "Focused Build";
+          } catch {
+            return false;
+          }
+        })
+      )
+    )
+    .toBe(true);
+  await closeSession(page, "Focused Build");
+});
+
+test("workspace interactions: focusing a session does not scroll the terminal grid", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 700 });
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Focus One");
+  await page.addStyleTag({
+    content: "#terminalGrid::after { content: ''; display: block; height: 900px; }"
+  });
+
+  const grid = page.locator("#terminalGrid");
+  await grid.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  const beforeScrollTop = await grid.evaluate((element) => element.scrollTop);
+  expect(beforeScrollTop).toBeGreaterThan(0);
+
+  await page.locator("#sessionList .session-item", { hasText: "Focus One" }).click();
+
+  await expect.poll(() => grid.evaluate((element) => element.scrollTop)).toBe(beforeScrollTop);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {

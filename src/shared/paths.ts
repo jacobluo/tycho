@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 const sourceDir = dirname(fileURLToPath(import.meta.url));
 
 export const projectRoot = resolve(sourceDir, "..", "..");
-export const tuimuxHome = join(projectRoot, ".tuimux");
+export const tuimuxHome = resolve(process.env.TYCHO_TUIMUX_HOME || join(projectRoot, ".tuimux"));
 export const xdgConfigHome = join(tuimuxHome, "config");
 export const xdgStateHome = join(tuimuxHome, "state");
 export const tuimuxConfigDir = join(xdgConfigHome, "tuimux");
