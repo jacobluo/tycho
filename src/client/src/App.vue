@@ -103,6 +103,13 @@
       @close="closeSessionDialog"
       @submit="submitSessionDialog"
     />
+
+    <ConfirmSessionCloseDialog
+      :open="closeSessionDialogOpen"
+      :session-title="pendingCloseWindow?.title || 'Session'"
+      @close="closeSessionCloseDialog"
+      @confirm="confirmCloseWindow"
+    />
   </main>
 </template>
 
@@ -113,6 +120,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
 import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
+import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
 import type {
   PublicRuntimeConfig,
@@ -151,6 +159,8 @@ const activePaneId = ref<string | null>(null);
 const passwordDialogOpen = ref(false);
 const sessionDialogOpen = ref(false);
 const pendingSessionAgentId = ref<string | null>(null);
+const closeSessionDialogOpen = ref(false);
+const pendingCloseWindowId = ref<string | null>(null);
 const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
@@ -181,6 +191,7 @@ const routeTitle = computed(() => {
 });
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
+const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
@@ -243,6 +254,7 @@ async function logout(): Promise<void> {
   users.value = [];
   passwordDialogOpen.value = false;
   closeSessionDialog();
+  closeSessionCloseDialog();
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
   await router.push("/");
@@ -599,7 +611,22 @@ function focusWindow(windowId: string): void {
 }
 
 function closeWindow(windowId: string): void {
+  pendingCloseWindowId.value = windowId;
+  closeSessionDialogOpen.value = true;
+}
+
+function closeSessionCloseDialog(): void {
+  closeSessionDialogOpen.value = false;
+  pendingCloseWindowId.value = null;
+}
+
+function confirmCloseWindow(): void {
+  const windowId = pendingCloseWindowId.value;
+  if (!windowId) {
+    return;
+  }
   send({ type: "close_window", windowId });
+  closeSessionCloseDialog();
 }
 
 function focusPane(entry: TerminalEntry): void {

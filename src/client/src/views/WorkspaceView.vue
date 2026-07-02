@@ -42,6 +42,7 @@
             v-else
             :key="windowState.id"
             class="session-item"
+            :class="{ active: state.activeWindowId === windowState.id || activePaneId === windowState.activePaneId }"
             @click="emit('focus-window', windowState.id)"
           >
             <div class="session-item-main">

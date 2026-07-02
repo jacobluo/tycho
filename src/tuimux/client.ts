@@ -25,6 +25,14 @@ export function createTuimuxServerSpawnOptions(env: NodeJS.ProcessEnv = process.
   };
 }
 
+export function upsertWindowPreservingOrder(windows: TuimuxWindow[], nextWindow: TuimuxWindow): TuimuxWindow[] {
+  const index = windows.findIndex((window) => window.id === nextWindow.id);
+  if (index === -1) {
+    return [...windows, nextWindow];
+  }
+  return windows.map((window, currentIndex) => currentIndex === index ? nextWindow : window);
+}
+
 export type TuimuxMessage =
   | { type: "snapshot"; layout: "panes"; windows?: TuimuxWindow[]; panes?: TuimuxPane[]; activeWindowId?: string | null; activePaneId?: string | null; serverVersion?: string }
   | { type: "pane_started"; pane: TuimuxPane }
@@ -233,10 +241,7 @@ export class TuimuxClient extends EventEmitter {
         );
         break;
       case "window_changed":
-        this.state.windows = [
-          ...this.state.windows.filter((window) => window.id !== message.window.id),
-          message.window
-        ];
+        this.state.windows = upsertWindowPreservingOrder(this.state.windows, message.window);
         this.emitState();
         break;
       case "window_closed":

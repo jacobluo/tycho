@@ -65,6 +65,10 @@ async function closeSession(page: import("@playwright/test").Page, name: string)
     return;
   }
   await card.getByRole("button", { name: "Close" }).click();
+  const dialog = page.getByRole("dialog", { name: "Close Session" });
+  if (await dialog.count() > 0) {
+    await dialog.getByRole("button", { name: "Close Session" }).click();
+  }
   await expect(card).toHaveCount(0);
 }
 
@@ -267,6 +271,7 @@ test("sidebar session close: closes a session from the Sessions list", async ({ 
   const sessionItem = page.locator("#sessionList .session-item", { hasText: "Sidebar Close" });
   await expect(sessionItem).toBeVisible();
   await sessionItem.getByRole("button", { name: "Close Sidebar Close" }).click();
+  await page.getByRole("dialog", { name: "Close Session" }).getByRole("button", { name: "Close Session" }).click();
 
   await expect(sessionItem).toHaveCount(0);
   await expect(page.locator(".terminal-card", { hasText: "Sidebar Close" })).toHaveCount(0);
@@ -279,6 +284,41 @@ test("terminal card actions: omits redundant Focus button", async ({ page }) => 
   const card = page.locator(".terminal-card", { hasText: "No Focus Button" });
   await expect(card.getByRole("button", { name: "Focus" })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "Close" })).toBeVisible();
+});
+
+test("session close focus polish: uses custom close confirmation", async ({ page }) => {
+  let nativeDialogs = 0;
+  page.on("dialog", async (dialog) => {
+    nativeDialogs += 1;
+    await dialog.dismiss();
+  });
+
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Confirm Close");
+
+  const card = page.locator(".terminal-card", { hasText: "Confirm Close" });
+  await card.getByRole("button", { name: "Close" }).click();
+  const dialog = page.getByRole("dialog", { name: "Close Session" });
+  await expect(dialog.getByRole("heading", { name: "Close Session" })).toBeVisible();
+  await expect(dialog.getByText("Confirm Close")).toBeVisible();
+  expect(nativeDialogs).toBe(0);
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(card).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Close Session" })).toHaveCount(0);
+
+  await card.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Close Session" }).click();
+  await expect(card).toHaveCount(0);
+  expect(nativeDialogs).toBe(0);
+});
+
+test("session close focus polish: marks active sidebar session", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Active Sidebar");
+
+  const sessionItem = page.locator("#sessionList .session-item", { hasText: "Active Sidebar" });
+  await expect(sessionItem).toHaveClass(/active/);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {

@@ -500,6 +500,12 @@ button.danger:hover {
   padding: 10px;
 }
 
+.session-item.active {
+  background: rgba(79, 184, 255, 0.08);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .session-item-main {
   min-width: 0;
 }
@@ -774,6 +780,22 @@ button.danger:hover {
 
 .session-dialog {
   max-width: 360px;
+}
+
+.confirm-session-close {
+  max-width: 360px;
+}
+
+.confirm-dialog-message {
+  color: #dce3ef;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .management-shell {
