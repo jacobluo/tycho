@@ -26,7 +26,7 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: `PORT=3217 PROJECTS_DB=${projectsDbPath} TYCHO_TUIMUX_HOME=${tuimuxHome} PROJECT_BROWSER_ROOTS=${directoryBrowserRoot} pnpm run dev`,
+    command: `PORT=3217 NODE_ENV=development PROJECTS_DB=${projectsDbPath} TYCHO_TUIMUX_HOME=${tuimuxHome} PROJECT_BROWSER_ROOTS=${directoryBrowserRoot} node --import tsx src/server/index.ts`,
     url: "http://127.0.0.1:3217",
     reuseExistingServer: false,
     timeout: 20_000
