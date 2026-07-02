@@ -58,9 +58,6 @@
           <h2>Server-side TUIs</h2>
           <p>CodeBuddy / Codex / Claude run inside tuimux on the server.</p>
         </div>
-        <div class="header-actions">
-          <button id="newCodeBuddy" type="button" :disabled="!selectedProjectId" @click="emit('create-session', 'codebuddy')">New CodeBuddy</button>
-        </div>
       </header>
 
       <div id="terminalGrid" class="terminal-grid" :class="{ empty: terminalEntries.length === 0 }">

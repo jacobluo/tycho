@@ -62,6 +62,7 @@ test("adds and deletes a managed project", async ({ page }) => {
   const projectPath = makeProjectDir();
 
   await login(page, "admin", "admin");
+  await expect(page.getByRole("button", { name: "New CodeBuddy" })).toHaveCount(0);
   await expect(page.locator(".sidebar").getByRole("heading", { name: "Add Project" })).toHaveCount(0);
   await expect(page.locator(".sidebar").getByRole("heading", { name: "Users" })).toHaveCount(0);
   await openProjectManagement(page);
