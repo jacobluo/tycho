@@ -89,7 +89,6 @@
               <span>{{ entry.pane.status }} / {{ entry.pane.entry.cwd }}</span>
             </div>
             <div class="terminal-actions">
-              <button type="button" @click="emit('focus-pane', entry)">Focus</button>
               <button class="danger" type="button" @click="emit('close-window', entry.windowState.id)">Close</button>
             </div>
           </div>

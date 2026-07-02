@@ -272,6 +272,15 @@ test("sidebar session close: closes a session from the Sessions list", async ({ 
   await expect(page.locator(".terminal-card", { hasText: "Sidebar Close" })).toHaveCount(0);
 });
 
+test("terminal card actions: omits redundant Focus button", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "No Focus Button");
+
+  const card = page.locator(".terminal-card", { hasText: "No Focus Button" });
+  await expect(card.getByRole("button", { name: "Focus" })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Close" })).toBeVisible();
+});
+
 test("shows a validation error for an invalid project path", async ({ page }) => {
   const missingPath = join(directoryBrowserRoot, `tycho-e2e-missing-${Date.now()}`);
 
