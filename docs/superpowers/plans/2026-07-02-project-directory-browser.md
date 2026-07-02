@@ -27,7 +27,7 @@
 - Create: `src/runtime/directory-browser.ts`
 - Create: `src/runtime/directory-browser.test.ts`
 
-- [ ] **Step 1: Write failing runtime tests**
+- [x] **Step 1: Write failing runtime tests**
 
 Create `src/runtime/directory-browser.test.ts` with tests shaped around this API:
 
@@ -118,7 +118,7 @@ describe("directory browser", () => {
 });
 ```
 
-- [ ] **Step 2: Run runtime tests to verify RED**
+- [x] **Step 2: Run runtime tests to verify RED**
 
 Run:
 
@@ -128,7 +128,7 @@ scripts/test
 
 Expected: FAIL because `src/runtime/directory-browser.ts` does not exist.
 
-- [ ] **Step 3: Implement runtime browser**
+- [x] **Step 3: Implement runtime browser**
 
 Create `src/runtime/directory-browser.ts` exporting:
 
@@ -157,7 +157,7 @@ Implementation requirements:
 - Use `readdir(currentPath, { withFileTypes: true })`, include directories only, sort by `name.localeCompare`, omit entries that cannot be `realpath`/`stat`, and omit entries outside roots.
 - Return `parentPath` only when the parent is still inside an allowed root.
 
-- [ ] **Step 4: Run runtime tests to verify GREEN**
+- [x] **Step 4: Run runtime tests to verify GREEN**
 
 Run:
 
@@ -167,7 +167,7 @@ scripts/test
 
 Expected: PASS, including the new directory browser tests.
 
-- [ ] **Step 5: Commit runtime slice**
+- [x] **Step 5: Commit runtime slice**
 
 Run:
 
