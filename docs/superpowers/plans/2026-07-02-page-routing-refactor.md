@@ -356,3 +356,84 @@ git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/s
 git commit -m "feat: make admin management list first"
 git push
 ```
+
+### Task 6: Editable Managed Projects
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md`
+- Modify: `docs/superpowers/plans/2026-07-02-page-routing-refactor.md`
+- Modify: `src/runtime/config.test.ts`
+- Modify: `src/runtime/config.ts`
+- Modify: `src/server/index.ts`
+- Modify: `src/client/src/App.vue`
+- Modify: `src/client/src/views/AdminLayout.vue`
+- Modify: `src/client/src/views/ProjectManagementView.vue`
+- Modify: `e2e/project-management.spec.ts`
+
+- [x] **Step 1: Update spec and plan**
+
+Record that managed project editing is now in scope and requires a server API.
+
+- [x] **Step 2: Write failing tests**
+
+Add runtime tests for `updateManagedProject`, and E2E coverage that edits a managed project's name, path, and description from the Project Management drawer.
+
+Expected RED:
+
+```bash
+scripts/test
+# FAIL: config.js does not export updateManagedProject
+
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+# FAIL: edit fields are readonly / no save action
+```
+
+- [x] **Step 3: Implement runtime update**
+
+Add `updateManagedProject(projectId, input)` in `src/runtime/config.ts`. It should:
+
+- Return `null` when `projectId` is not a managed project.
+- Trim supplied values.
+- Validate non-empty name and path when provided.
+- Resolve and validate path directories.
+- Reject duplicate paths owned by another project.
+- Persist `name`, `path`, `description`, and `updated_at`.
+
+- [x] **Step 4: Implement admin API route**
+
+Add `PATCH /api/projects/:projectId` in `src/server/index.ts`, guarded by `requireAdmin`, returning `404` for non-managed/missing projects and `{ project, config }` for updates.
+
+- [x] **Step 5: Wire frontend edit save**
+
+Add `updateProjectForm(projectId)` in `App.vue`, forward it through `AdminLayout.vue`, and make `ProjectManagementView.vue` edit drawer inputs editable with a Save Project action.
+
+- [x] **Step 6: Verify focused tests**
+
+Run:
+
+```bash
+scripts/test
+pnpm exec playwright test e2e/project-management.spec.ts --grep "adds and deletes"
+```
+
+Expected: PASS.
+
+- [x] **Step 7: Run full verification**
+
+Run:
+
+```bash
+scripts/verify
+```
+
+Expected: PASS.
+
+- [x] **Step 8: Commit and push**
+
+Run:
+
+```bash
+git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/superpowers/plans/2026-07-02-page-routing-refactor.md src/runtime/config.test.ts src/runtime/config.ts src/server/index.ts src/client/src/App.vue src/client/src/views/AdminLayout.vue src/client/src/views/ProjectManagementView.vue e2e/project-management.spec.ts
+git commit -m "feat: support editing managed projects"
+git push
+```

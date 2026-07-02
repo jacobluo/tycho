@@ -41,6 +41,12 @@ export type ManagedProjectInput = {
   description?: string;
 };
 
+export type ManagedProjectUpdateInput = {
+  name?: string;
+  path?: string;
+  description?: string;
+};
+
 export type RuntimeConfig = {
   agents: AgentEntry[];
   projects: ProjectConfig[];
@@ -289,6 +295,57 @@ export async function removeManagedProject(projectId: string): Promise<boolean> 
   try {
     const result = db.prepare("DELETE FROM projects WHERE id = ?").run(projectId);
     return result.changes > 0;
+  } finally {
+    db.close();
+  }
+}
+
+export async function updateManagedProject(projectId: string, input: ManagedProjectUpdateInput): Promise<ProjectConfig | null> {
+  const db = openProjectsDb();
+  try {
+    const current = db.prepare("SELECT id, name, path, description FROM projects WHERE id = ?").get(projectId) as
+      | (ProjectConfig & { description: string })
+      | undefined;
+    if (!current) {
+      return null;
+    }
+
+    const name = input.name === undefined ? current.name : input.name.trim();
+    if (input.path !== undefined && !input.path.trim()) {
+      throw new Error("Project path is required");
+    }
+    const projectPath = input.path === undefined ? current.path : resolve(input.path.trim());
+    const description = input.description === undefined ? current.description || "" : input.description.trim();
+
+    if (!name) {
+      throw new Error("Project name is required");
+    }
+    if (!projectPath) {
+      throw new Error("Project path is required");
+    }
+    assertProjectDirectory(projectPath);
+
+    const duplicate = db.prepare("SELECT id FROM projects WHERE path = ? AND id != ?").get(projectPath, projectId) as
+      | { id: string }
+      | undefined;
+    if (duplicate || readConfiguredProjects().some((project) => project.path === projectPath)) {
+      throw new Error(`Project path is already configured: ${projectPath}`);
+    }
+
+    const now = new Date().toISOString();
+    db.prepare(`
+      UPDATE projects
+      SET name = ?, path = ?, description = ?, updated_at = ?
+      WHERE id = ?
+    `).run(name, projectPath, description, now, projectId);
+
+    return {
+      id: projectId,
+      name,
+      path: projectPath,
+      ...(description ? { description } : {}),
+      managed: true
+    };
   } finally {
     db.close();
   }

@@ -24,7 +24,6 @@ The desired product shape is clearer:
 
 - Do not redesign the visual system from scratch.
 - Do not add new admin domains beyond project and user management.
-- Do not change backend APIs.
 - Do not change RBAC semantics.
 - Do not introduce a new UI component library.
 
@@ -82,6 +81,7 @@ The refactor can keep state and API functions in `App.vue` for this slice. Movin
 - Log Out remains an account menu action.
 - Admin list checkboxes support multi-select.
 - Edit is enabled only when exactly one row is selected.
+- Managed project editing updates project name, local path, and description through an admin-only server API.
 - Delete supports one or more selected rows, but non-managed base projects remain protected.
 - User project assignment lives in the user edit overlay, not as always-visible controls on every user row.
 
@@ -98,5 +98,6 @@ E2E coverage should verify:
 - Project and user management pages open to tables before any form.
 - Selecting rows enables the appropriate toolbar actions.
 - Add/edit forms appear only after the user chooses an action.
+- Project edit persists updated name, path, and description and rejects duplicate or invalid paths.
 
 Typecheck and full verification must pass before completion.

@@ -34,6 +34,7 @@ import {
   removeManagedProject,
   toPublicAgentEntry,
   toPublicTuimuxState,
+  updateManagedProject,
   type RuntimeConfig
 } from "../runtime/config.js";
 import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
@@ -286,6 +287,29 @@ app.delete("/api/projects/:projectId", async (request, response) => {
     refreshRuntimeConfig();
     broadcastConfig();
     response.status(removed ? 202 : 404).json({ ok: removed, config: publicConfigForUser(user) });
+  } catch (error) {
+    response.status(400).json({ error: error instanceof Error ? error.message : "Invalid project request" });
+  }
+});
+
+app.patch("/api/projects/:projectId", async (request, response) => {
+  try {
+    const user = await requireAdmin(request, response);
+    if (!user) {
+      return;
+    }
+    const project = await updateManagedProject(request.params.projectId, {
+      ...(typeof request.body?.name === "string" ? { name: request.body.name } : {}),
+      ...(typeof request.body?.path === "string" ? { path: request.body.path } : {}),
+      ...(typeof request.body?.description === "string" ? { description: request.body.description } : {})
+    });
+    if (!project) {
+      response.status(404).json({ error: "Managed project not found" });
+      return;
+    }
+    refreshRuntimeConfig();
+    broadcastConfig();
+    response.json({ project, config: publicConfigForUser(user) });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Invalid project request" });
   }

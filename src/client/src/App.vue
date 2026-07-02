@@ -74,6 +74,7 @@
         @card-pointer-down="handleCardPointerDown"
         @set-terminal-host="setTerminalHost"
         @submit-project-form="submitProjectForm"
+        @update-project-form="updateProjectForm"
         @delete-projects="deleteProjects"
         @create-new-user="createNewUser"
         @save-user="saveUser"
@@ -403,6 +404,23 @@ async function submitProjectForm(): Promise<void> {
     setProjectFormStatus("Project added", "success");
   } catch (error) {
     setProjectFormStatus(error instanceof Error ? error.message : "Could not add project", "error");
+  } finally {
+    projectFormBusy.value = false;
+  }
+}
+
+async function updateProjectForm(projectId: string): Promise<void> {
+  setProjectFormStatus("Updating project");
+  projectFormBusy.value = true;
+  try {
+    const payload = await requestJson<{ project: ProjectConfig; config: PublicRuntimeConfig }>(`/api/projects/${encodeURIComponent(projectId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(projectForm)
+    });
+    applyConfig(payload.config, payload.project.id);
+    setProjectFormStatus("Project updated", "success");
+  } catch (error) {
+    setProjectFormStatus(error instanceof Error ? error.message : "Could not update project", "error");
   } finally {
     projectFormBusy.value = false;
   }

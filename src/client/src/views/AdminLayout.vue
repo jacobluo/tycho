@@ -9,6 +9,7 @@
         :is="Component"
         v-bind="$props"
         @submit-project-form="emit('submit-project-form')"
+        @update-project-form="emit('update-project-form', $event)"
         @delete-projects="emit('delete-projects', $event)"
         @persist-selected-project="emit('persist-selected-project')"
         @create-new-user="emit('create-new-user')"
@@ -52,6 +53,7 @@ defineProps<{
 
 const emit = defineEmits<{
   "submit-project-form": [];
+  "update-project-form": [projectId: string];
   "delete-projects": [projectIds: string[]];
   "persist-selected-project": [];
   "create-new-user": [];

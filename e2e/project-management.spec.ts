@@ -68,6 +68,7 @@ test.afterEach(() => {
 
 test("adds and deletes a managed project", async ({ page }) => {
   const projectPath = makeProjectDir();
+  const editedProjectPath = makeProjectDir();
 
   await login(page, "admin", "admin");
   await expect(page.getByRole("button", { name: "New CodeBuddy" })).toHaveCount(0);
@@ -89,11 +90,22 @@ test("adds and deletes a managed project", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Edit Project" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Delete Selected" })).toBeEnabled();
 
+  await page.getByRole("button", { name: "Edit Project" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("E2E Edited Project");
+  await page.getByLabel("Local Path").fill(editedProjectPath);
+  await page.getByLabel("Description").fill("Edited by Playwright");
+  await page.getByRole("button", { name: "Save Project" }).click();
+
+  await expect(page.locator("#projectFormStatus")).toHaveText("Project updated");
+  await expect(page.getByRole("row", { name: /E2E Edited Project/ })).toBeVisible();
+  await expect(page.locator("#projectPath")).toHaveText(editedProjectPath);
+  await expect(page.locator("#projectDescription")).toHaveText("Edited by Playwright");
+
   page.on("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete Selected" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project deleted");
-  await expect(page.getByRole("row", { name: /E2E Managed Project/ })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /E2E Edited Project/ })).toHaveCount(0);
 });
 
 test("changes password from the account menu", async ({ page }) => {

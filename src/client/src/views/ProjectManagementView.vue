@@ -71,26 +71,26 @@
       <div class="drawer-header">
         <div>
           <h3>{{ drawerMode === "create" ? "Add Project" : "Project Details" }}</h3>
-          <p>{{ drawerMode === "create" ? "Register a local project for Tycho." : "Project metadata is shown for review." }}</p>
+          <p>{{ drawerMode === "create" ? "Register a local project for Tycho." : "Update this managed project's metadata." }}</p>
         </div>
         <button class="link-button" type="button" @click="closeDrawer">Close</button>
       </div>
 
-      <form id="projectForm" class="project-form" @submit.prevent="emit('submit-project-form')">
+      <form id="projectForm" class="project-form" @submit.prevent="saveProject">
         <label>
           <span>Name</span>
-          <input v-model="projectForm.name" name="name" type="text" autocomplete="off" :readonly="drawerMode === 'edit'" required />
+          <input v-model="projectForm.name" name="name" type="text" autocomplete="off" required />
         </label>
         <label>
           <span>Local Path</span>
-          <input v-model="projectForm.path" name="path" type="text" autocomplete="off" :readonly="drawerMode === 'edit'" required />
+          <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
         </label>
         <label>
           <span>Description</span>
-          <textarea v-model="projectForm.description" name="description" rows="4" :readonly="drawerMode === 'edit'"></textarea>
+          <textarea v-model="projectForm.description" name="description" rows="4"></textarea>
         </label>
-        <button v-if="drawerMode === 'create'" type="submit" :disabled="projectFormBusy">Save Project</button>
-        <p v-else class="form-status">Project editing is read-only until the server exposes update support.</p>
+        <button type="submit" :disabled="projectFormBusy || (drawerMode === 'edit' && !activeDrawerProject?.managed)">Save Project</button>
+        <p v-if="drawerMode === 'edit' && !activeDrawerProject?.managed" class="form-status error">Only managed projects can be edited.</p>
       </form>
 
       <dl v-if="activeDrawerProject" class="drawer-details">
@@ -124,6 +124,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "submit-project-form": [];
+  "update-project-form": [projectId: string];
   "delete-projects": [projectIds: string[]];
   "persist-selected-project": [];
   "update:selectedProjectId": [projectId: string];
@@ -157,7 +158,7 @@ watch(
 watch(
   () => props.projectFormStatus,
   (status) => {
-    if (status === "Project added" || status === "Project deleted" || status === "Projects deleted") {
+    if (status === "Project added" || status === "Project updated" || status === "Project deleted" || status === "Projects deleted") {
       drawerMode.value = null;
     }
   }
@@ -194,5 +195,13 @@ function closeDrawer(): void {
 
 function deleteSelection(): void {
   emit("delete-projects", selectedProjects.value.filter((project) => project.managed).map((project) => project.id));
+}
+
+function saveProject(): void {
+  if (drawerMode.value === "edit" && activeDrawerProject.value) {
+    emit("update-project-form", activeDrawerProject.value.id);
+    return;
+  }
+  emit("submit-project-form");
 }
 </script>
