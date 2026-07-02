@@ -163,7 +163,7 @@ test("boots the Vue Vite client", async ({ page }) => {
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {
-  const missingPath = join(tmpdir(), `tycho-e2e-missing-${Date.now()}`);
+  const missingPath = join(directoryBrowserRoot, `tycho-e2e-missing-${Date.now()}`);
 
   await login(page, "admin", "admin");
   await openProjectManagement(page);

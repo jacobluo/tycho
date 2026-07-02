@@ -429,7 +429,7 @@ git commit -m "feat: add project directory picker UI"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-02-project-directory-browser.md`
 
-- [ ] **Step 1: Run typecheck**
+- [x] **Step 1: Run typecheck**
 
 Run:
 
@@ -439,7 +439,7 @@ scripts/typecheck
 
 Expected: PASS.
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 Run:
 
@@ -449,7 +449,7 @@ scripts/test
 
 Expected: PASS.
 
-- [ ] **Step 3: Run E2E**
+- [x] **Step 3: Run E2E**
 
 Run:
 
@@ -459,7 +459,7 @@ scripts/e2e
 
 Expected: PASS.
 
-- [ ] **Step 4: Run full verify**
+- [x] **Step 4: Run full verify**
 
 Run:
 
