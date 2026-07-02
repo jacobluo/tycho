@@ -11,7 +11,8 @@ import {
   removeManagedProject,
   readRuntimeConfig,
   toPublicAgentEntry,
-  toPublicTuimuxState
+  toPublicTuimuxState,
+  updateManagedProject
 } from "./config.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -186,6 +187,55 @@ describe("runtime config", () => {
       () => addManagedProject({ name: "Second", path: projectPath }),
       /Project path is already configured/
     );
+  });
+
+  test("updates managed project details", async () => {
+    const storeDir = makeProjectDir("store");
+    const firstPath = makeProjectDir("first");
+    const secondPath = makeProjectDir("second");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+
+    const project = await addManagedProject({ name: "Managed App", path: firstPath, description: "Before" });
+    const updated = await updateManagedProject(project.id, {
+      name: "Updated App",
+      path: secondPath,
+      description: "After"
+    });
+
+    assert.deepEqual(updated, {
+      id: project.id,
+      name: "Updated App",
+      path: secondPath,
+      description: "After",
+      managed: true
+    });
+    assert.deepEqual(readRuntimeConfig().projects.find((candidate) => candidate.id === project.id), updated);
+  });
+
+  test("rejects managed project updates with duplicate paths", async () => {
+    const storeDir = makeProjectDir("store");
+    const firstPath = makeProjectDir("first");
+    const secondPath = makeProjectDir("second");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+
+    const first = await addManagedProject({ name: "First", path: firstPath });
+    await addManagedProject({ name: "Second", path: secondPath });
+
+    await assert.rejects(
+      () => updateManagedProject(first.id, { path: secondPath }),
+      /Project path is already configured/
+    );
+  });
+
+  test("does not update configured projects", async () => {
+    const storeDir = makeProjectDir("store");
+    const envProjectPath = makeProjectDir("env");
+    process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
+    process.env.PROJECTS_JSON = JSON.stringify([
+      { id: "env", name: "Env", path: envProjectPath }
+    ]);
+
+    assert.equal(await updateManagedProject("env", { name: "Nope" }), null);
   });
 
   test("removes only managed projects", async () => {

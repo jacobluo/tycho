@@ -34,17 +34,28 @@ async function logout(page: import("@playwright/test").Page): Promise<void> {
 async function openProjectManagement(page: import("@playwright/test").Page): Promise<void> {
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Admin Management" }).click();
-  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
-  await page.getByRole("tab", { name: "Project Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await expect(page.getByRole("navigation", { name: "Admin Management" })).toBeVisible();
+  await expect(page.locator(".workspace-sidebar")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Project Management" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Projects" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Managed" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit Project" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
+  await expect(page.locator("#projectForm")).toHaveCount(0);
 }
 
 async function openUserManagement(page: import("@playwright/test").Page): Promise<void> {
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Admin Management" }).click();
-  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
-  await page.getByRole("tab", { name: "User Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await page.getByRole("link", { name: "User Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/users$/);
   await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Users" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit User" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
+  await expect(page.locator("#userFormStatus")).toHaveCount(0);
 }
 
 test.afterEach(() => {
@@ -58,37 +69,56 @@ test.afterEach(() => {
 
 test("adds and deletes a managed project", async ({ page }) => {
   const projectPath = makeProjectDir();
+  const editedProjectPath = makeProjectDir();
 
   await login(page, "admin", "admin");
+  await expect(page.getByRole("button", { name: "New CodeBuddy" })).toHaveCount(0);
   await expect(page.locator(".sidebar").getByRole("heading", { name: "Add Project" })).toHaveCount(0);
   await expect(page.locator(".sidebar").getByRole("heading", { name: "Users" })).toHaveCount(0);
   await openProjectManagement(page);
 
+  await page.getByRole("button", { name: "Add Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("E2E Managed Project");
   await page.getByLabel("Local Path").fill(projectPath);
   await page.getByLabel("Description").fill("Created by Playwright");
-  await page.getByRole("button", { name: "Add Project" }).click();
+  await page.getByRole("button", { name: "Save Project" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project added");
-  await expect(page.locator("#projectSelect")).toHaveValue("e2e-managed-project");
-  await expect(page.locator("#projectPath")).toHaveText(projectPath);
-  await expect(page.locator("#projectDescription")).toHaveText("Created by Playwright");
-  await expect(page.getByRole("button", { name: "Delete Project" })).toBeEnabled();
+  await expect(page.getByRole("row", { name: new RegExp(`E2E Managed Project.*${projectPath}.*Created by Playwright`) })).toBeVisible();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
+  await page.getByRole("checkbox", { name: "Select E2E Managed Project" }).check();
+  await expect(page.getByRole("button", { name: "Edit Project" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Delete Selected" })).toBeEnabled();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Edit Project" }).click();
+  await page.getByLabel("Name", { exact: true }).fill("E2E Edited Project");
+  await page.getByLabel("Local Path").fill(editedProjectPath);
+  await page.getByLabel("Description").fill("Edited by Playwright");
+  await page.getByRole("button", { name: "Save Project" }).click();
+
+  await expect(page.locator("#projectFormStatus")).toHaveText("Project updated");
+  await expect(page.getByRole("row", { name: new RegExp(`E2E Edited Project.*${editedProjectPath}.*Edited by Playwright`) })).toBeVisible();
+  await expect(page.getByText("Selected Path")).toHaveCount(0);
+  await expect(page.getByText("Selected Description")).toHaveCount(0);
 
   page.on("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete Project" }).click();
+  await page.getByRole("button", { name: "Delete Selected" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveText("Project deleted");
-  await expect(page.locator("#projectSelect")).not.toHaveValue("e2e-managed-project");
+  await expect(page.getByRole("row", { name: /E2E Edited Project/ })).toHaveCount(0);
 });
 
 test("changes password from the account menu", async ({ page }) => {
   await login(page, "admin", "admin");
   await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
   await page.getByLabel("New Username").fill("password-user");
   await page.getByLabel("New Password").fill("initial-password");
   await page.getByLabel("New Role").selectOption("user");
-  await page.getByRole("button", { name: "Create User" }).click();
+  await page.getByRole("button", { name: "Save User" }).click();
   await expect(page.locator("#userFormStatus")).toHaveText("User created");
 
   await logout(page);
@@ -124,13 +154,14 @@ test("shows a validation error for an invalid project path", async ({ page }) =>
 
   await login(page, "admin", "admin");
   await openProjectManagement(page);
+  await page.getByRole("button", { name: "Add Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Missing Project");
   await page.getByLabel("Local Path").fill(missingPath);
-  await page.getByRole("button", { name: "Add Project" }).click();
+  await page.getByRole("button", { name: "Save Project" }).click();
 
   await expect(page.locator("#projectFormStatus")).toHaveClass(/error/);
   await expect(page.locator("#projectFormStatus")).toContainText("Project path is not a directory");
-  await expect(page.locator("#projectSelect")).not.toHaveValue("missing-project");
+  await expect(page.getByRole("row", { name: /Missing Project/ })).toHaveCount(0);
 });
 
 test("admin assigns a project and ordinary user cannot manage projects", async ({ page }) => {
@@ -138,24 +169,27 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
 
   await login(page, "admin", "admin");
   await openProjectManagement(page);
+  await page.getByRole("button", { name: "Add Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Assigned Project");
   await page.getByLabel("Local Path").fill(projectPath);
   await page.getByLabel("Description").fill("Visible to assigned user");
-  await page.getByRole("button", { name: "Add Project" }).click();
+  await page.getByRole("button", { name: "Save Project" }).click();
   await expect(page.locator("#projectFormStatus")).toHaveText("Project added");
 
   await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
   await page.getByLabel("New Username").fill("alice");
   await page.getByLabel("New Password").fill("secret-secret");
   await page.getByLabel("New Role").selectOption("user");
-  await page.getByRole("button", { name: "Create User" }).click();
+  await page.getByRole("button", { name: "Save User" }).click();
   await expect(page.locator("#userFormStatus")).toHaveText("User created");
 
   const aliceRow = page.locator('[data-user-row="alice"]');
   await expect(aliceRow).toBeVisible();
-  await aliceRow.getByLabel("Assigned Project").check();
-  await aliceRow.getByRole("button", { name: "Save Projects" }).click();
-  await expect(aliceRow.locator(".user-status-message")).toHaveText("Projects saved");
+  await aliceRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Assigned Project").check();
+  await page.getByRole("button", { name: "Save Projects" }).click();
+  await expect(page.locator(".user-status-message")).toHaveText("Projects saved");
 
   await logout(page);
   await login(page, "alice", "secret-secret");
@@ -167,6 +201,8 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Project Management" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "User Management" })).toHaveCount(0);
+  await page.goto("/admin/projects");
+  await expect(page).toHaveURL(/\/$/);
 
   const status = await page.evaluate(async () => {
     const response = await fetch("/api/projects", {
@@ -181,8 +217,8 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await logout(page);
   await login(page, "admin", "admin");
   await openProjectManagement(page);
-  await page.locator("#projectSelect").selectOption("assigned-project");
+  await page.getByRole("checkbox", { name: "Select Assigned Project" }).check();
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete Project" }).click();
+  await page.getByRole("button", { name: "Delete Selected" }).click();
   await expect(page.locator("#projectFormStatus")).toHaveText("Project deleted");
 });
