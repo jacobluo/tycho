@@ -35,10 +35,16 @@ async function chooseProjectDirectory(page: import("@playwright/test").Page, pro
 
 async function login(page: import("@playwright/test").Page, username: string, password: string): Promise<void> {
   await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.removeItem("tycho-layout-mode");
+    localStorage.removeItem("tycho-slot-assignments");
+    localStorage.removeItem("tycho-active-slot-id");
+  });
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page.getByRole("button", { name: `${username} ${roleLabel(username)}` })).toBeVisible();
+  await closeAllSessions(page);
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
@@ -49,22 +55,53 @@ async function waitForWorkspaceConnection(page: import("@playwright/test").Page)
   await expect(page.locator("#connectionStatus")).toHaveText("Connected");
 }
 
+async function closeAllSessions(page: import("@playwright/test").Page): Promise<void> {
+  await waitForWorkspaceConnection(page);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const closeButtons = page.locator("#sessionList .session-close-button");
+    const sessionCount = await closeButtons.count();
+    if (sessionCount === 0) {
+      return;
+    }
+
+    await closeButtons.first().click();
+    const dialog = page.getByRole("dialog", { name: "Close Session" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close Session" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(closeButtons).toHaveCount(sessionCount - 1);
+  }
+  throw new Error("Could not clear existing sessions before the test");
+}
+
 async function startNamedSession(page: import("@playwright/test").Page, name: string): Promise<void> {
   await waitForWorkspaceConnection(page);
   await page.getByRole("button", { name: /CodeBuddy/ }).click();
-  await expect(page.getByRole("heading", { name: "Name Session" })).toBeVisible();
-  await page.getByLabel("Session Name").fill(name);
-  await page.getByRole("button", { name: "Start Session" }).click();
-  await expect(page.getByRole("heading", { name: "Name Session" })).toHaveCount(0);
-  await expect(page.locator(".terminal-card", { hasText: name })).toBeVisible();
+  const dialog = page.getByRole("dialog", { name: "Name Session" });
+  await expect(dialog).toBeVisible();
+  const nameInput = dialog.getByLabel("Session Name");
+  await nameInput.fill(name);
+  await expect(nameInput).toHaveValue(name);
+  await expect(dialog.getByRole("button", { name: "Start Session" })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Start Session" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(visibleSessionCard(page, name)).toBeVisible();
+}
+
+function visibleSessionCard(page: import("@playwright/test").Page, name: string): import("@playwright/test").Locator {
+  return page.locator(`.terminal-card[data-session-title="${name}"]`);
 }
 
 async function closeSession(page: import("@playwright/test").Page, name: string): Promise<void> {
-  const card = page.locator(".terminal-card", { hasText: name });
+  const card = visibleSessionCard(page, name);
   if (await card.count() === 0) {
     return;
   }
-  await card.getByRole("button", { name: "Close" }).click();
+  await card.getByRole("button", { name: "Close Session" }).click();
+  const dialog = page.getByRole("dialog", { name: "Close Session" });
+  if (await dialog.count() > 0) {
+    await dialog.getByRole("button", { name: "Close Session" }).click();
+  }
   await expect(card).toHaveCount(0);
 }
 
@@ -222,7 +259,7 @@ test("workspace interactions: creating a session asks for a name and sends it", 
   await page.getByLabel("Session Name").fill("Focused Build");
   await page.getByRole("button", { name: "Start Session" }).click();
 
-  await expect(page.locator(".terminal-card", { hasText: "Focused Build" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Focused Build")).toBeVisible();
   await expect
     .poll(async () =>
       page.evaluate(() =>
@@ -258,6 +295,193 @@ test("workspace interactions: focusing a session does not scroll the terminal gr
   await page.locator("#sessionList .session-item", { hasText: "Focus One" }).click();
 
   await expect.poll(() => grid.evaluate((element) => element.scrollTop)).toBe(beforeScrollTop);
+});
+
+test("sidebar session close: closes a session from the Sessions list", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Sidebar Close");
+
+  const sessionItem = page.locator("#sessionList .session-item", { hasText: "Sidebar Close" });
+  await expect(sessionItem).toBeVisible();
+  await sessionItem.getByRole("button", { name: "Close Sidebar Close" }).click();
+  await page.getByRole("dialog", { name: "Close Session" }).getByRole("button", { name: "Close Session" }).click();
+
+  await expect(sessionItem).toHaveCount(0);
+  await expect(visibleSessionCard(page, "Sidebar Close")).toHaveCount(0);
+});
+
+test("terminal card actions: omits redundant Focus button", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "No Focus Button");
+
+  const card = visibleSessionCard(page, "No Focus Button");
+  await expect(card.getByRole("button", { name: "Focus" })).toHaveCount(0);
+  await expect(card.getByRole("button", { name: "Close Session" })).toBeVisible();
+});
+
+test("session close focus polish: uses custom close confirmation", async ({ page }) => {
+  let nativeDialogs = 0;
+  page.on("dialog", async (dialog) => {
+    nativeDialogs += 1;
+    await dialog.dismiss();
+  });
+
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Confirm Close");
+
+  const card = visibleSessionCard(page, "Confirm Close");
+  await card.getByRole("button", { name: "Close Session" }).click();
+  const dialog = page.getByRole("dialog", { name: "Close Session" });
+  await expect(dialog.getByRole("heading", { name: "Close Session" })).toBeVisible();
+  await expect(dialog.getByText("Confirm Close")).toBeVisible();
+  expect(nativeDialogs).toBe(0);
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(card).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Close Session" })).toHaveCount(0);
+
+  await card.getByRole("button", { name: "Close Session" }).click();
+  await page.getByRole("dialog", { name: "Close Session" }).getByRole("button", { name: "Close Session" }).click();
+  await expect(card).toHaveCount(0);
+  expect(nativeDialogs).toBe(0);
+});
+
+test("session close focus polish: marks active sidebar session", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Active Sidebar");
+
+  const sessionItem = page.locator("#sessionList .session-item", { hasText: "Active Sidebar" });
+  await expect(sessionItem).toHaveClass(/active/);
+});
+
+test("single active session selection: selecting sessions keeps one active item and stable card order", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Stable One");
+  await startNamedSession(page, "Stable Two");
+  await startNamedSession(page, "Stable Three");
+
+  const sidebarTwo = page.locator("#sessionList .session-item", { hasText: "Stable Two" });
+  await sidebarTwo.click();
+  await expect(page.locator("#sessionList .session-item.active")).toHaveCount(1);
+  await expect(sidebarTwo).toHaveClass(/active/);
+  await expect(visibleSessionCard(page, "Stable Two")).toHaveCount(1);
+
+  const cardOne = visibleSessionCard(page, "Stable One");
+  await cardOne.click();
+  const sidebarOne = page.locator("#sessionList .session-item", { hasText: "Stable One" });
+  await expect(page.locator("#sessionList .session-item.active")).toHaveCount(1);
+  await expect(sidebarOne).toHaveClass(/active/);
+  await expect(visibleSessionCard(page, "Stable One")).toHaveCount(1);
+});
+
+test("session slot layout: switches visible slot modes", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Layout One");
+  await startNamedSession(page, "Layout Two");
+  await startNamedSession(page, "Layout Three");
+
+  await page.locator('[data-slot-id="slot-1"]').click();
+  await page.locator("#sessionList .session-item", { hasText: "Layout One" }).click();
+  await page.getByRole("button", { name: "Single session layout" }).click();
+  await expect(visibleSessionCard(page, "Layout One")).toBeVisible();
+  await expect(page.locator('.terminal-card[data-session-title^="Layout "]')).toHaveCount(1);
+
+  await page.getByRole("button", { name: "Two vertical layout" }).click();
+  await page.locator('[data-slot-id="slot-2"]').click();
+  await page.locator("#sessionList .session-item", { hasText: "Layout Two" }).click();
+  await expect(page.locator('.terminal-card[data-session-title^="Layout "]')).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Two horizontal layout" }).click();
+  await expect(page.locator('.terminal-card[data-session-title^="Layout "]')).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Four session layout" }).click();
+  await page.locator('[data-slot-id="slot-3"]').click();
+  await page.locator("#sessionList .session-item", { hasText: "Layout Three" }).click();
+  await expect(page.locator('.terminal-card[data-session-title^="Layout "]')).toHaveCount(3);
+});
+
+test("session slot layout: assigns sessions through active slot and selector", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Slot Alpha");
+  await startNamedSession(page, "Slot Beta");
+  await startNamedSession(page, "Slot Gamma");
+  await page.getByRole("button", { name: "Two vertical layout" }).click();
+
+  const slotTwo = page.locator('[data-slot-id="slot-2"]');
+  await slotTwo.click();
+  await page.locator("#sessionList .session-item", { hasText: "Slot Gamma" }).click();
+  await expect(slotTwo).toHaveAttribute("data-session-title", "Slot Gamma");
+  await expect(page.locator('[data-slot-id="slot-1"]')).not.toHaveAttribute("data-session-title", "Slot Gamma");
+
+  await slotTwo.getByLabel("Session for Slot 2").selectOption({ label: "Slot Beta" });
+  await expect(slotTwo).toHaveAttribute("data-session-title", "Slot Beta");
+  await expect(page.locator("#sessionList .session-item", { hasText: "Slot Gamma" })).toBeVisible();
+});
+
+test("session slot layout: hides display without closing and still confirms close", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Hide Me");
+  await startNamedSession(page, "Close Me");
+  await page.getByRole("button", { name: "Two vertical layout" }).click();
+
+  await page.locator('[data-slot-id="slot-1"]').click();
+  await page.locator("#sessionList .session-item", { hasText: "Hide Me" }).click();
+  await page.locator('[data-slot-id="slot-2"]').click();
+  await page.locator("#sessionList .session-item", { hasText: "Close Me" }).click();
+
+  const hideSlot = visibleSessionCard(page, "Hide Me");
+  await hideSlot.getByRole("button", { name: "Hide" }).click();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Hide Me" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Hide Me")).toHaveCount(0);
+
+  const closeSlot = visibleSessionCard(page, "Close Me");
+  await closeSlot.getByRole("button", { name: "Close Session" }).click();
+  await page.getByRole("dialog", { name: "Close Session" }).getByRole("button", { name: "Close Session" }).click();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Close Me" })).toHaveCount(0);
+});
+
+test("terminal resize fit: emits valid resize dimensions across layout changes", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__TYCHO_WS_MESSAGES__ = [];
+    const originalSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function patchedSend(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+      window.__TYCHO_WS_MESSAGES__?.push(typeof data === "string" ? data : "[binary]");
+      return originalSend.call(this, data);
+    };
+  });
+
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Resize Fit");
+  await page.getByRole("button", { name: "Single session layout" }).click();
+  await page.getByRole("button", { name: "Four session layout" }).click();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (window.__TYCHO_WS_MESSAGES__ || [])
+          .map((message) => {
+            try {
+              return JSON.parse(message) as Record<string, unknown>;
+            } catch {
+              return null;
+            }
+          })
+          .filter((payload): payload is Record<string, unknown> => Boolean(payload) && payload.type === "resize")
+      )
+    )
+    .toContainEqual(expect.objectContaining({ type: "resize", cols: expect.any(Number), rows: expect.any(Number) }));
+
+  const invalidResizeCount = await page.evaluate(() =>
+    (window.__TYCHO_WS_MESSAGES__ || []).filter((message) => {
+      try {
+        const payload = JSON.parse(message) as Record<string, unknown>;
+        return payload.type === "resize" && (!(Number(payload.cols) > 0) || !(Number(payload.rows) > 0));
+      } catch {
+        return false;
+      }
+    }).length
+  );
+  expect(invalidResizeCount).toBe(0);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {

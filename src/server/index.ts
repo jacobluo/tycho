@@ -41,6 +41,7 @@ import { listDirectories } from "../runtime/directory-browser.js";
 import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
 import { clientDistDir, projectRoot } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
+import { createShutdownController } from "./shutdown.js";
 
 let runtime: RuntimeConfig = readRuntimeConfig();
 const tuimux = new TuimuxClient();
@@ -574,7 +575,6 @@ server.listen(runtime.webPort, () => {
   console.log(`Tycho: http://localhost:${runtime.webPort}`);
 });
 
-process.on("SIGINT", () => {
-  server.close();
-  process.exit(0);
-});
+const shutdownController = createShutdownController({ server, wss, tuimux });
+process.on("SIGINT", () => void shutdownController.shutdown(0));
+process.on("SIGTERM", () => void shutdownController.shutdown(0));

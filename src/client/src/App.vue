@@ -56,7 +56,12 @@
         :new-user-form="newUserForm"
         :selected-project="selectedProject"
         :terminal-entries="terminalEntries"
-        :active-pane-id="activePaneId"
+        :slot-entries="slotEntries"
+        :selected-window-id="selectedWindowId"
+        :layout-mode="layoutMode"
+        :layout-class="layoutClass"
+        :active-slot-id="activeSlotId"
+        :visible-slot-ids="visibleSlotIds"
         :connection-label="connectionLabel"
         :project-form-status="projectFormStatus"
         :project-form-tone="projectFormTone"
@@ -70,6 +75,10 @@
         @create-session="openSessionDialog"
         @focus-window="focusWindow"
         @close-window="closeWindow"
+        @set-layout-mode="setLayoutMode"
+        @set-active-slot="setActiveSlot"
+        @assign-slot-window="assignSlotWindow"
+        @clear-slot="clearSlot"
         @focus-pane="focusPane"
         @card-pointer-down="handleCardPointerDown"
         @set-terminal-host="setTerminalHost"
@@ -103,6 +112,13 @@
       @close="closeSessionDialog"
       @submit="submitSessionDialog"
     />
+
+    <ConfirmSessionCloseDialog
+      :open="closeSessionDialogOpen"
+      :session-title="pendingCloseWindow?.title || 'Session'"
+      @close="closeSessionCloseDialog"
+      @confirm="confirmCloseWindow"
+    />
   </main>
 </template>
 
@@ -111,9 +127,23 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import type { ComponentPublicInstance } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
 import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
+import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
+import { resolveSelectedWindowId } from "../../shared/session-selection";
+import {
+  allSessionSlotIds,
+  assignWindowToSlot,
+  clearWindowFromSlots,
+  createEmptySlotAssignments,
+  pruneSlotAssignments,
+  resolveVisibleSlotIds,
+  type SessionLayoutMode,
+  type SessionSlotId,
+  type SlotAssignments
+} from "../../shared/session-slots";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -121,6 +151,7 @@ import type {
   ServerMessage,
   TerminalEntry,
   TerminalRecord,
+  TerminalSlotEntry,
   TuimuxPane,
   TuimuxState,
   TuimuxWindow,
@@ -148,9 +179,16 @@ const passwordForm = reactive({ currentPassword: "", newPassword: "" });
 const sessionForm = reactive({ name: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
+const layoutMode = ref<SessionLayoutMode>(readStoredLayoutMode());
+const activeSlotId = ref<SessionSlotId>(readStoredActiveSlotId());
+const viewportWidth = ref(window.innerWidth);
+const slotAssignments = reactive<SlotAssignments>(readStoredSlotAssignments());
+const knownWindowIds = ref<Set<string>>(new Set());
 const passwordDialogOpen = ref(false);
 const sessionDialogOpen = ref(false);
 const pendingSessionAgentId = ref<string | null>(null);
+const closeSessionDialogOpen = ref(false);
+const pendingCloseWindowId = ref<string | null>(null);
 const loginError = ref("");
 const projectFormStatus = ref("");
 const projectFormTone = ref("");
@@ -181,12 +219,46 @@ const routeTitle = computed(() => {
 });
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
+const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
+const visibleSlotIds = computed(() => resolveVisibleSlotIds(layoutMode.value, viewportWidth.value));
+const selectedWindowId = computed(() => {
+  const activeSlotWindowId = slotAssignments[activeSlotId.value];
+  if (activeSlotWindowId && state.windows.some((windowState) => windowState.id === activeSlotWindowId)) {
+    return activeSlotWindowId;
+  }
+  return resolveSelectedWindowId(state.windows, {
+    localActivePaneId: activePaneId.value,
+    serverActivePaneId: state.activePaneId,
+    serverActiveWindowId: state.activeWindowId
+  });
+});
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
     return pane ? [{ windowState, pane }] : [];
   })
 );
+const slotEntries = computed<TerminalSlotEntry[]>(() =>
+  visibleSlotIds.value.map((slotId, index) => {
+    const windowState = state.windows.find((candidate) => candidate.id === slotAssignments[slotId]);
+    const pane = windowState ? paneForWindow(windowState) : undefined;
+    return {
+      slotId,
+      label: `Slot ${index + 1}`,
+      windowState,
+      pane
+    };
+  })
+);
+const layoutClass = computed<SessionLayoutMode>(() => {
+  if (visibleSlotIds.value.length === 1) {
+    return "single";
+  }
+  if (visibleSlotIds.value.length === 2) {
+    return layoutMode.value === "two-horizontal" ? "two-horizontal" : "two-vertical";
+  }
+  return "quad";
+});
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -201,6 +273,54 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(typeof payload.error === "string" ? payload.error : "Request failed");
   }
   return payload as T;
+}
+
+function isLayoutMode(value: string | null): value is SessionLayoutMode {
+  return value === "auto" || value === "single" || value === "two-vertical" || value === "two-horizontal" || value === "quad";
+}
+
+function isSlotId(value: string | null): value is SessionSlotId {
+  return allSessionSlotIds.includes(value as SessionSlotId);
+}
+
+function readStoredLayoutMode(): SessionLayoutMode {
+  const stored = localStorage.getItem("tycho-layout-mode");
+  return isLayoutMode(stored) ? stored : "auto";
+}
+
+function readStoredActiveSlotId(): SessionSlotId {
+  const stored = localStorage.getItem("tycho-active-slot-id");
+  return isSlotId(stored) ? stored : "slot-1";
+}
+
+function readStoredSlotAssignments(): SlotAssignments {
+  const assignments = createEmptySlotAssignments();
+  const stored = localStorage.getItem("tycho-slot-assignments");
+  if (!stored) {
+    return assignments;
+  }
+  try {
+    const parsed = JSON.parse(stored) as Partial<Record<SessionSlotId, unknown>>;
+    for (const slotId of allSessionSlotIds) {
+      const value = parsed[slotId];
+      assignments[slotId] = typeof value === "string" ? value : null;
+    }
+  } catch {
+    return assignments;
+  }
+  return assignments;
+}
+
+function persistSlotState(): void {
+  localStorage.setItem("tycho-layout-mode", layoutMode.value);
+  localStorage.setItem("tycho-active-slot-id", activeSlotId.value);
+  localStorage.setItem("tycho-slot-assignments", JSON.stringify(slotAssignments));
+}
+
+function replaceSlotAssignments(nextAssignments: SlotAssignments): void {
+  for (const slotId of allSessionSlotIds) {
+    slotAssignments[slotId] = nextAssignments[slotId];
+  }
 }
 
 async function initAuth(): Promise<void> {
@@ -243,6 +363,7 @@ async function logout(): Promise<void> {
   users.value = [];
   passwordDialogOpen.value = false;
   closeSessionDialog();
+  closeSessionCloseDialog();
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
   await router.push("/");
@@ -316,6 +437,11 @@ function disconnect(): void {
   }
 }
 
+function handleViewportResize(): void {
+  viewportWidth.value = window.innerWidth;
+  syncSlotAssignments();
+}
+
 function send(payload: Record<string, unknown>): void {
   if (socket.value?.readyState === WebSocket.OPEN) {
     socket.value.send(JSON.stringify(payload));
@@ -332,12 +458,29 @@ function applyConfig(nextConfig: PublicRuntimeConfig, preferredProjectId = selec
 }
 
 function applyState(nextState: TuimuxState): void {
+  const previousWindowIds = knownWindowIds.value;
   state.connected = nextState.connected;
   state.serverVersion = nextState.serverVersion;
-  state.windows = nextState.windows;
+  state.windows = mergeWindowsPreservingOrder(state.windows, nextState.windows);
   state.panes = nextState.panes;
   state.activeWindowId = nextState.activeWindowId;
   state.activePaneId = nextState.activePaneId;
+  if (activePaneId.value && !nextState.panes.some((pane) => pane.paneId === activePaneId.value)) {
+    activePaneId.value = nextState.activePaneId;
+  }
+  syncSlotAssignments(previousWindowIds);
+  knownWindowIds.value = new Set(state.windows.map((windowState) => windowState.id));
+}
+
+function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
+  const incomingById = new Map(incomingWindows.map((windowState) => [windowState.id, windowState]));
+  const existingIds = new Set(windows.map((windowState) => windowState.id));
+  const existingWindows = windows.flatMap((windowState) => {
+    const incomingWindow = incomingById.get(windowState.id);
+    return incomingWindow ? [incomingWindow] : [];
+  });
+  const newWindows = incomingWindows.filter((windowState) => !existingIds.has(windowState.id));
+  return [...existingWindows, ...newWindows];
 }
 
 function getProjectId(preferredProjectId?: string): string {
@@ -352,6 +495,54 @@ function getProjectId(preferredProjectId?: string): string {
     return config.defaultProjectId;
   }
   return config.projects[0]?.id || "";
+}
+
+function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
+  const liveWindowIds = state.windows.map((windowState) => windowState.id);
+  const liveWindowIdSet = new Set(liveWindowIds);
+  let nextAssignments = pruneSlotAssignments(slotAssignments, liveWindowIds);
+  const visibleIds = visibleSlotIds.value;
+  if (!visibleIds.includes(activeSlotId.value)) {
+    activeSlotId.value = visibleIds[0] ?? "slot-1";
+  }
+
+  const assignedWindowIds = new Set(Object.values(nextAssignments).filter((windowId): windowId is string => Boolean(windowId)));
+  for (const windowState of state.windows) {
+    if (assignedWindowIds.has(windowState.id)) {
+      continue;
+    }
+    const emptySlotId = visibleIds.find((slotId) => !nextAssignments[slotId]);
+    if (!emptySlotId) {
+      break;
+    }
+    nextAssignments = assignWindowToSlot(nextAssignments, emptySlotId, windowState.id);
+    assignedWindowIds.add(windowState.id);
+  }
+
+  const newWindow = state.windows.find((windowState) => !previousWindowIds.has(windowState.id));
+  const newWindowAssigned = newWindow ? Object.values(nextAssignments).includes(newWindow.id) : false;
+  if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id) && !newWindowAssigned) {
+    nextAssignments = assignWindowToSlot(nextAssignments, activeSlotId.value, newWindow.id);
+  }
+  if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id)) {
+    const newWindowSlotId = visibleIds.find((slotId) => nextAssignments[slotId] === newWindow.id);
+    activeSlotId.value = newWindowSlotId ?? activeSlotId.value;
+    activePaneId.value = newWindow.activePaneId;
+  }
+
+  if (!nextAssignments[activeSlotId.value]) {
+    const preferredWindowId = resolveSelectedWindowId(state.windows, {
+      localActivePaneId: activePaneId.value,
+      serverActivePaneId: state.activePaneId,
+      serverActiveWindowId: state.activeWindowId
+    });
+    const preferredSlotId = visibleIds.find((slotId) => nextAssignments[slotId] === preferredWindowId);
+    const occupiedSlotId = visibleIds.find((slotId) => Boolean(nextAssignments[slotId]));
+    activeSlotId.value = preferredSlotId ?? occupiedSlotId ?? activeSlotId.value;
+  }
+
+  replaceSlotAssignments(nextAssignments);
+  persistSlotState();
 }
 
 function persistSelectedProject(): void {
@@ -589,34 +780,94 @@ function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
   return state.panes.find((pane) => pane.paneId === windowState.activePaneId);
 }
 
+function setLayoutMode(mode: SessionLayoutMode): void {
+  layoutMode.value = mode;
+  syncSlotAssignments();
+}
+
+function setActiveSlot(slotId: SessionSlotId): void {
+  activeSlotId.value = slotId;
+  persistSlotState();
+}
+
+function assignSlotWindow(slotId: SessionSlotId, windowId: string | null): void {
+  setActiveSlot(slotId);
+  replaceSlotAssignments(assignWindowToSlot(slotAssignments, slotId, windowId));
+  persistSlotState();
+  if (windowId) {
+    focusWindow(windowId);
+  }
+}
+
+function clearSlot(slotId: SessionSlotId): void {
+  replaceSlotAssignments(assignWindowToSlot(slotAssignments, slotId, null));
+  persistSlotState();
+}
+
 function focusWindow(windowId: string): void {
-  send({ type: "focus_window", windowId });
+  const existingSlotId = visibleSlotIds.value.find((slotId) => slotAssignments[slotId] === windowId);
+  if (existingSlotId) {
+    setActiveSlot(existingSlotId);
+  } else {
+    replaceSlotAssignments(assignWindowToSlot(slotAssignments, activeSlotId.value, windowId));
+    persistSlotState();
+  }
   const windowState = state.windows.find((candidate) => candidate.id === windowId);
   const pane = windowState ? paneForWindow(windowState) : undefined;
+  if (pane) {
+    activePaneId.value = pane.paneId;
+  }
+  send({ type: "focus_window", windowId });
   if (pane) {
     focusTerminal(pane.paneId);
   }
 }
 
 function closeWindow(windowId: string): void {
-  send({ type: "close_window", windowId });
+  pendingCloseWindowId.value = windowId;
+  closeSessionDialogOpen.value = true;
 }
 
-function focusPane(entry: TerminalEntry): void {
+function closeSessionCloseDialog(): void {
+  closeSessionDialogOpen.value = false;
+  pendingCloseWindowId.value = null;
+}
+
+function confirmCloseWindow(): void {
+  const windowId = pendingCloseWindowId.value;
+  if (!windowId) {
+    return;
+  }
+  replaceSlotAssignments(clearWindowFromSlots(slotAssignments, windowId));
+  persistSlotState();
+  send({ type: "close_window", windowId });
+  closeSessionCloseDialog();
+}
+
+function focusPane(entry: TerminalEntry | TerminalSlotEntry): void {
+  if ("slotId" in entry && entry.pane && entry.windowState) {
+    setActiveSlot(entry.slotId);
+  }
+  if (!entry.pane || !entry.windowState) {
+    return;
+  }
   activePaneId.value = entry.pane.paneId;
   send({ type: "focus_window", windowId: entry.windowState.id });
   focusTerminal(entry.pane.paneId);
 }
 
-function handleCardPointerDown(event: PointerEvent, entry: TerminalEntry): void {
+function handleCardPointerDown(event: PointerEvent, entry: TerminalEntry | TerminalSlotEntry): void {
   if ((event.target as HTMLElement).closest(".terminal-actions")) {
     return;
   }
   focusPane(entry);
 }
 
-function setTerminalHost(entry: TerminalEntry, element: Element | ComponentPublicInstance | null): void {
+function setTerminalHost(entry: TerminalEntry | TerminalSlotEntry, element: Element | ComponentPublicInstance | null): void {
   if (!(element instanceof HTMLElement)) {
+    return;
+  }
+  if (!entry.pane || !entry.windowState) {
     return;
   }
   const existing = terminals.get(entry.pane.paneId);
@@ -626,7 +877,7 @@ function setTerminalHost(entry: TerminalEntry, element: Element | ComponentPubli
   if (existing) {
     disposeTerminal(entry.pane.paneId);
   }
-  mountTerminal(entry, element);
+  mountTerminal({ windowState: entry.windowState, pane: entry.pane }, element);
 }
 
 function focusTerminal(paneId: string): void {
@@ -653,12 +904,14 @@ function mountTerminal(entry: TerminalEntry, host: HTMLElement): void {
       selectionBackground: "#2f5d7c"
     }
   });
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
   term.open(host);
   term.write(entry.pane.buffer || "");
   const inputDisposable = term.onData((data) => send({ type: "input", paneId: entry.pane.paneId, data }));
   const resizeObserver = new ResizeObserver(() => resizeTerminal(entry.pane.paneId));
   resizeObserver.observe(host);
-  terminals.set(entry.pane.paneId, { term, host, resizeObserver, inputDisposable });
+  terminals.set(entry.pane.paneId, { term, fitAddon, host, resizeObserver, inputDisposable });
   window.setTimeout(() => {
     resizeTerminal(entry.pane.paneId);
     focusPane(entry);
@@ -670,10 +923,16 @@ function resizeTerminal(paneId: string): void {
   if (!record) {
     return;
   }
-  const rect = record.host.getBoundingClientRect();
-  const cols = Math.max(20, Math.floor((rect.width - 16) / 7.8));
-  const rows = Math.max(6, Math.floor((rect.height - 16) / 15.4));
-  record.term.resize(cols, rows);
+  record.fitAddon.fit();
+  const cols = record.term.cols;
+  const rows = record.term.rows;
+  if (cols <= 0 || rows <= 0) {
+    return;
+  }
+  if (record.lastResize?.cols === cols && record.lastResize.rows === rows) {
+    return;
+  }
+  record.lastResize = { cols, rows };
   send({ type: "resize", paneId, cols, rows });
 }
 
@@ -706,6 +965,39 @@ watch(
 );
 
 watch(
+  () => slotEntries.value.map((entry) => entry.pane?.paneId).filter((paneId): paneId is string => Boolean(paneId)),
+  (visiblePaneIds) => {
+    const visiblePaneIdSet = new Set(visiblePaneIds);
+    for (const paneId of terminals.keys()) {
+      if (!visiblePaneIdSet.has(paneId)) {
+        disposeTerminal(paneId);
+      }
+    }
+    void nextTick(() => {
+      for (const paneId of visiblePaneIds) {
+        resizeTerminal(paneId);
+      }
+    });
+  }
+);
+
+watch(layoutMode, () => {
+  syncSlotAssignments();
+});
+
+watch(activeSlotId, () => {
+  persistSlotState();
+});
+
+watch(
+  () => ({ ...slotAssignments }),
+  () => {
+    persistSlotState();
+  },
+  { deep: true }
+);
+
+watch(
   [() => route.path, currentUser, isAdmin],
   ([path, user, admin]) => {
     if (user && path.startsWith("/admin") && !admin) {
@@ -716,8 +1008,13 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener("resize", handleViewportResize);
+  syncSlotAssignments();
   void initAuth();
 });
 
-onUnmounted(disconnect);
+onUnmounted(() => {
+  window.removeEventListener("resize", handleViewportResize);
+  disconnect();
+});
 </script>

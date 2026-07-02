@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { unlink } from "node:fs/promises";
 import net from "node:net";
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 import {
   projectRoot,
   tuimuxBinPath,
@@ -11,6 +11,38 @@ import {
   xdgStateHome
 } from "../shared/paths.js";
 import { writeTuimuxConfig, type AgentEntry } from "../runtime/config.js";
+
+export function createTuimuxServerSpawnOptions(env: NodeJS.ProcessEnv = process.env): SpawnOptions {
+  return {
+    cwd: projectRoot,
+    detached: false,
+    env: {
+      ...env,
+      XDG_CONFIG_HOME: xdgConfigHome,
+      XDG_STATE_HOME: xdgStateHome
+    },
+    stdio: "ignore"
+  };
+}
+
+export function upsertWindowPreservingOrder(windows: TuimuxWindow[], nextWindow: TuimuxWindow): TuimuxWindow[] {
+  const index = windows.findIndex((window) => window.id === nextWindow.id);
+  if (index === -1) {
+    return [...windows, nextWindow];
+  }
+  return windows.map((window, currentIndex) => currentIndex === index ? nextWindow : window);
+}
+
+export function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
+  const incomingById = new Map(incomingWindows.map((window) => [window.id, window]));
+  const existingIds = new Set(windows.map((window) => window.id));
+  const existingWindows = windows.flatMap((window) => {
+    const incomingWindow = incomingById.get(window.id);
+    return incomingWindow ? [incomingWindow] : [];
+  });
+  const newWindows = incomingWindows.filter((window) => !existingIds.has(window.id));
+  return [...existingWindows, ...newWindows];
+}
 
 export type TuimuxMessage =
   | { type: "snapshot"; layout: "panes"; windows?: TuimuxWindow[]; panes?: TuimuxPane[]; activeWindowId?: string | null; activePaneId?: string | null; serverVersion?: string }
@@ -145,20 +177,11 @@ export class TuimuxClient extends EventEmitter {
   }
 
   private spawnServer(): void {
-    const env = {
-      ...process.env,
-      XDG_CONFIG_HOME: xdgConfigHome,
-      XDG_STATE_HOME: xdgStateHome
-    };
-
-    this.serverProcess = spawn("bun", [tuimuxBinPath, "--server", "--layout", "panes", "--no-default-window", "--no-autostart"], {
-      cwd: projectRoot,
-      detached: true,
-      env,
-      stdio: "ignore"
-    });
-
-    this.serverProcess.unref();
+    this.serverProcess = spawn(
+      "bun",
+      [tuimuxBinPath, "--server", "--layout", "panes", "--no-default-window", "--no-autostart"],
+      createTuimuxServerSpawnOptions()
+    );
   }
 
   private bindSocket(socket: net.Socket): void {
@@ -203,7 +226,7 @@ export class TuimuxClient extends EventEmitter {
         this.state = {
           connected: true,
           serverVersion: message.serverVersion,
-          windows: message.windows ?? [],
+          windows: mergeWindowsPreservingOrder(this.state.windows, message.windows ?? []),
           panes: message.panes ?? [],
           activeWindowId: message.activeWindowId ?? null,
           activePaneId: message.activePaneId ?? null
@@ -229,10 +252,7 @@ export class TuimuxClient extends EventEmitter {
         );
         break;
       case "window_changed":
-        this.state.windows = [
-          ...this.state.windows.filter((window) => window.id !== message.window.id),
-          message.window
-        ];
+        this.state.windows = upsertWindowPreservingOrder(this.state.windows, message.window);
         this.emitState();
         break;
       case "window_closed":

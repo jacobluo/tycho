@@ -490,10 +490,24 @@ button.danger:hover {
 }
 
 .session-item {
+  align-items: start;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #12161d;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 10px;
+}
+
+.session-item.active {
+  background: rgba(79, 184, 255, 0.08);
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.session-item-main {
+  min-width: 0;
 }
 
 .session-item strong {
@@ -521,6 +535,12 @@ button.danger:hover {
   overflow-wrap: anywhere;
 }
 
+.session-close-button {
+  color: var(--muted);
+  min-height: 26px;
+  padding: 0 8px;
+}
+
 .workspace {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -542,6 +562,31 @@ button.danger:hover {
 
 .workspace-header h2 {
   font-size: 18px;
+}
+
+.layout-switcher {
+  align-items: center;
+  background: #10141b;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+}
+
+.layout-switcher button {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+  min-height: 30px;
+  min-width: 38px;
+  padding: 0 8px;
+}
+
+.layout-switcher button.active {
+  background: var(--panel-strong);
+  border-color: var(--line);
+  color: var(--text);
 }
 
 .header-actions {
@@ -762,6 +807,22 @@ button.danger:hover {
   max-width: 360px;
 }
 
+.confirm-session-close {
+  max-width: 360px;
+}
+
+.confirm-dialog-message {
+  color: #dce3ef;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .management-shell {
   background: #11151b;
 }
@@ -868,14 +929,32 @@ button.danger:hover {
 }
 
 .terminal-grid {
-  align-content: start;
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
   height: 100%;
   min-height: 0;
   overflow: auto;
   padding: 14px;
+}
+
+.terminal-grid.layout-single {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.terminal-grid.layout-two-vertical {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.terminal-grid.layout-two-horizontal {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+
+.terminal-grid.layout-quad {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
 }
 
 .terminal-grid.empty {
@@ -895,8 +974,7 @@ button.danger:hover {
   border-radius: 8px;
   display: grid;
   grid-template-rows: 42px minmax(0, 1fr);
-  height: min(520px, calc(100vh - 112px));
-  min-height: 390px;
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
 }
@@ -935,6 +1013,12 @@ button.danger:hover {
   white-space: nowrap;
 }
 
+.slot-session-select {
+  min-width: 130px;
+  padding: 5px 8px;
+  width: auto;
+}
+
 .terminal-title strong {
   flex: 0 0 auto;
 }
@@ -948,6 +1032,7 @@ button.danger:hover {
 .terminal-actions {
   display: flex;
   gap: 8px;
+  flex: 0 0 auto;
 }
 
 .terminal-actions button {
@@ -972,6 +1057,23 @@ button.danger:hover {
 
 .terminal-host .xterm {
   height: 100%;
+}
+
+.slot-empty-state {
+  align-items: center;
+  background: #0d1117;
+  border: 0;
+  border-radius: 0;
+  color: var(--muted);
+  display: flex;
+  font-size: 14px;
+  justify-content: center;
+  min-height: 0;
+  width: 100%;
+}
+
+.slot-empty-state:hover {
+  color: var(--text);
 }
 
 .admin-shell {
@@ -1212,8 +1314,26 @@ button.danger:hover {
     grid-template-columns: 1fr;
   }
 
+  .workspace-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .layout-switcher {
+    overflow-x: auto;
+  }
+
   .terminal-grid {
     grid-template-columns: 1fr;
+  }
+
+  .terminal-grid.layout-single,
+  .terminal-grid.layout-two-vertical,
+  .terminal-grid.layout-two-horizontal,
+  .terminal-grid.layout-quad {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
   }
 
   .management-grid,
