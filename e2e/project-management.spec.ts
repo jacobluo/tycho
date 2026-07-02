@@ -260,6 +260,18 @@ test("workspace interactions: focusing a session does not scroll the terminal gr
   await expect.poll(() => grid.evaluate((element) => element.scrollTop)).toBe(beforeScrollTop);
 });
 
+test("sidebar session close: closes a session from the Sessions list", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Sidebar Close");
+
+  const sessionItem = page.locator("#sessionList .session-item", { hasText: "Sidebar Close" });
+  await expect(sessionItem).toBeVisible();
+  await sessionItem.getByRole("button", { name: "Close Sidebar Close" }).click();
+
+  await expect(sessionItem).toHaveCount(0);
+  await expect(page.locator(".terminal-card", { hasText: "Sidebar Close" })).toHaveCount(0);
+});
+
 test("shows a validation error for an invalid project path", async ({ page }) => {
   const missingPath = join(directoryBrowserRoot, `tycho-e2e-missing-${Date.now()}`);
 

@@ -490,10 +490,18 @@ button.danger:hover {
 }
 
 .session-item {
+  align-items: start;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #12161d;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
   padding: 10px;
+}
+
+.session-item-main {
+  min-width: 0;
 }
 
 .session-item strong {
@@ -519,6 +527,12 @@ button.danger:hover {
   line-height: 1.35;
   margin-top: 6px;
   overflow-wrap: anywhere;
+}
+
+.session-close-button {
+  color: var(--muted);
+  min-height: 26px;
+  padding: 0 8px;
 }
 
 .workspace {

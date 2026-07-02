@@ -44,9 +44,19 @@
             class="session-item"
             @click="emit('focus-window', windowState.id)"
           >
-            <strong>{{ windowState.title }}</strong>
-            <span>{{ paneForWindow(windowState)?.status || "starting" }}</span>
-            <small>{{ paneForWindow(windowState)?.entry.cwd || "" }}</small>
+            <div class="session-item-main">
+              <strong>{{ windowState.title }}</strong>
+              <span>{{ paneForWindow(windowState)?.status || "starting" }}</span>
+              <small>{{ paneForWindow(windowState)?.entry.cwd || "" }}</small>
+            </div>
+            <button
+              class="session-close-button danger"
+              type="button"
+              :aria-label="`Close ${windowState.title}`"
+              @click.stop="emit('close-window', windowState.id)"
+            >
+              Close
+            </button>
           </div>
         </div>
       </div>
