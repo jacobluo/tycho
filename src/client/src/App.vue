@@ -74,12 +74,14 @@
         @card-pointer-down="handleCardPointerDown"
         @set-terminal-host="setTerminalHost"
         @submit-project-form="submitProjectForm"
-        @delete-selected-project="deleteSelectedProject"
+        @delete-projects="deleteProjects"
         @create-new-user="createNewUser"
         @save-user="saveUser"
         @toggle-user-status="toggleUserStatus"
         @delete-user="deleteUser"
         @save-user-projects="saveUserProjects"
+        @delete-users="deleteUsers"
+        @toggle-users-status="toggleUsersStatus"
       />
     </RouterView>
 
@@ -406,19 +408,28 @@ async function submitProjectForm(): Promise<void> {
   }
 }
 
-async function deleteSelectedProject(): Promise<void> {
-  if (!selectedProject.value?.managed || !confirm(`Delete project "${selectedProject.value.name}" from Tycho?`)) {
+async function deleteProjects(projectIds: string[]): Promise<void> {
+  const projects = projectIds
+    .map((projectId) => config.projects.find((project) => project.id === projectId))
+    .filter((project): project is ProjectConfig => Boolean(project?.managed));
+  if (projects.length === 0 || !confirm(`Delete ${projects.length} selected project${projects.length === 1 ? "" : "s"} from Tycho?`)) {
     return;
   }
   projectDeleteBusy.value = true;
   try {
-    const payload = await requestJson<{ ok: boolean; config: PublicRuntimeConfig }>(`/api/projects/${encodeURIComponent(selectedProject.value.id)}`, {
-      method: "DELETE"
-    });
-    applyConfig(payload.config);
-    setProjectFormStatus("Project deleted", "success");
+    let nextConfig: PublicRuntimeConfig | null = null;
+    for (const project of projects) {
+      const payload = await requestJson<{ ok: boolean; config: PublicRuntimeConfig }>(`/api/projects/${encodeURIComponent(project.id)}`, {
+        method: "DELETE"
+      });
+      nextConfig = payload.config;
+    }
+    if (nextConfig) {
+      applyConfig(nextConfig);
+    }
+    setProjectFormStatus(projects.length === 1 ? "Project deleted" : "Projects deleted", "success");
   } catch (error) {
-    setProjectFormStatus(error instanceof Error ? error.message : "Could not delete project", "error");
+    setProjectFormStatus(error instanceof Error ? error.message : "Could not delete projects", "error");
   } finally {
     projectDeleteBusy.value = false;
   }
@@ -469,12 +480,28 @@ async function toggleUserStatus(user: PublicUser): Promise<void> {
   setUsers(payload.users);
 }
 
+async function toggleUsersStatus(selectedUsers: PublicUser[]): Promise<void> {
+  for (const user of selectedUsers) {
+    await toggleUserStatus(user);
+  }
+}
+
 async function deleteUser(user: PublicUser): Promise<void> {
   if (!confirm(`Delete user "${user.username}" from Tycho?`)) {
     return;
   }
   const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}`, { method: "DELETE" });
   setUsers(payload.users);
+}
+
+async function deleteUsers(selectedUsers: PublicUser[]): Promise<void> {
+  if (selectedUsers.length === 0 || !confirm(`Delete ${selectedUsers.length} selected user${selectedUsers.length === 1 ? "" : "s"} from Tycho?`)) {
+    return;
+  }
+  for (const user of selectedUsers) {
+    const payload = await requestJson<{ users: PublicUser[] }>(`/api/users/${user.id}`, { method: "DELETE" });
+    setUsers(payload.users);
+  }
 }
 
 async function saveUserProjects(user: PublicUser): Promise<void> {

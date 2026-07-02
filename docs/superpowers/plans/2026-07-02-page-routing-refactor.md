@@ -267,3 +267,92 @@ git commit -m "feat: add routed workspace and admin layouts"
 ```
 
 Expected: commit succeeds after verification.
+
+### Task 5: List-First Admin CRUD
+
+**Files:**
+- Modify: `docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md`
+- Modify: `docs/superpowers/plans/2026-07-02-page-routing-refactor.md`
+- Modify: `e2e/project-management.spec.ts`
+- Modify: `src/client/src/App.vue`
+- Modify: `src/client/src/views/AdminLayout.vue`
+- Modify: `src/client/src/views/ProjectManagementView.vue`
+- Modify: `src/client/src/views/UserManagementView.vue`
+- Modify: `src/client/src/styles.css`
+
+- [x] **Step 1: Update spec and plan**
+
+Record that admin pages are list-first CRUD screens with selectable tables, toolbar actions, and overlay/drawer forms.
+
+- [x] **Step 2: Write failing E2E assertions**
+
+Update `e2e/project-management.spec.ts` so project management and user management expect:
+
+```ts
+await expect(page.getByRole("table", { name: "Projects" })).toBeVisible();
+await expect(page.getByRole("button", { name: "Edit Project" })).toBeDisabled();
+await expect(page.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
+await expect(page.locator("#projectForm")).toHaveCount(0);
+```
+
+and:
+
+```ts
+await expect(page.getByRole("table", { name: "Users" })).toBeVisible();
+await expect(page.getByRole("button", { name: "Edit User" })).toBeDisabled();
+await expect(page.locator("#userFormStatus")).toHaveCount(0);
+```
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "managed project|ordinary user|changes password|invalid project"
+```
+
+Expected: FAIL because the old admin screens still show persistent forms/cards first.
+
+- [x] **Step 3: Implement project table CRUD**
+
+Refactor `ProjectManagementView.vue` to show a project table, row checkboxes, toolbar buttons, and an Add/Edit drawer. Keep existing form/status/detail IDs used by E2E: `#projectForm`, `#projectFormStatus`, `#projectPath`, and `#projectDescription`.
+
+- [x] **Step 4: Implement user table CRUD**
+
+Refactor `UserManagementView.vue` to show a user table, row checkboxes, toolbar buttons, and Add/Edit drawer. Keep existing IDs/data hooks when the drawer is open: `#userFormStatus`, `[data-user-row="..."]`, and `.user-status-message`.
+
+- [x] **Step 5: Add parent actions for selected rows**
+
+Update `App.vue` and `AdminLayout.vue` so route views can delete selected projects, delete selected users, and toggle selected users by delegating to existing API calls.
+
+- [x] **Step 6: Update admin table/drawer styles**
+
+Add restrained backend styles for `.admin-toolbar`, `.admin-table`, `.admin-drawer`, `.row-actions`, and selected-row states without changing the product palette.
+
+- [x] **Step 7: Run focused E2E**
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "managed project|ordinary user|changes password|invalid project"
+```
+
+Expected: PASS.
+
+- [x] **Step 8: Run verification**
+
+Run:
+
+```bash
+scripts/verify
+```
+
+Expected: PASS.
+
+- [x] **Step 9: Commit and push**
+
+Run:
+
+```bash
+git add docs/superpowers/specs/2026-07-02-page-routing-refactor-design.md docs/superpowers/plans/2026-07-02-page-routing-refactor.md e2e/project-management.spec.ts src/client/src/App.vue src/client/src/views/AdminLayout.vue src/client/src/views/ProjectManagementView.vue src/client/src/views/UserManagementView.vue src/client/src/styles.css
+git commit -m "feat: make admin management list first"
+git push
+```

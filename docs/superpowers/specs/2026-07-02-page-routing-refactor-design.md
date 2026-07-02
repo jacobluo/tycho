@@ -52,7 +52,10 @@ Admin routes:
 
 - Use an admin layout with a left admin navigation rail.
 - Left rail contains Project Management and User Management.
-- Right content area contains the selected management list and create/edit/delete controls.
+- Right content area is list-first: the primary surface is a selectable table, not a persistent create form.
+- Project Management shows a project table first, with toolbar actions for Add, Edit, and Delete.
+- User Management shows a user table first, with toolbar actions for Add, Edit, Enable/Disable, and Delete.
+- Add and edit actions open a focused overlay/drawer so the user can keep table context.
 - It does not show the workspace agent/session/terminal sidebar.
 
 ## Component Plan
@@ -77,6 +80,10 @@ The refactor can keep state and API functions in `App.vue` for this slice. Movin
 - The project switcher is visible on workspace routes and hidden on admin routes unless a future admin workflow needs it.
 - Change Password remains a modal launched from the account menu.
 - Log Out remains an account menu action.
+- Admin list checkboxes support multi-select.
+- Edit is enabled only when exactly one row is selected.
+- Delete supports one or more selected rows, but non-managed base projects remain protected.
+- User project assignment lives in the user edit overlay, not as always-visible controls on every user row.
 
 ## Testing
 
@@ -88,5 +95,8 @@ E2E coverage should verify:
 - Admin pages do not show workspace agent/session sidebar controls.
 - Ordinary users do not see Admin Management in the account menu and cannot use admin routes.
 - Existing project create/delete, user create/assign, and password change flows still work.
+- Project and user management pages open to tables before any form.
+- Selecting rows enables the appropriate toolbar actions.
+- Add/edit forms appear only after the user chooses an action.
 
 Typecheck and full verification must pass before completion.

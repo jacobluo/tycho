@@ -9,13 +9,15 @@
         :is="Component"
         v-bind="$props"
         @submit-project-form="emit('submit-project-form')"
-        @delete-selected-project="emit('delete-selected-project')"
+        @delete-projects="emit('delete-projects', $event)"
         @persist-selected-project="emit('persist-selected-project')"
         @create-new-user="emit('create-new-user')"
         @save-user="emit('save-user', $event)"
         @toggle-user-status="emit('toggle-user-status', $event)"
         @delete-user="emit('delete-user', $event)"
         @save-user-projects="emit('save-user-projects', $event)"
+        @delete-users="emit('delete-users', $event)"
+        @toggle-users-status="emit('toggle-users-status', $event)"
       />
     </RouterView>
   </section>
@@ -50,12 +52,14 @@ defineProps<{
 
 const emit = defineEmits<{
   "submit-project-form": [];
-  "delete-selected-project": [];
+  "delete-projects": [projectIds: string[]];
   "persist-selected-project": [];
   "create-new-user": [];
   "save-user": [user: PublicUser];
   "toggle-user-status": [user: PublicUser];
   "delete-user": [user: PublicUser];
   "save-user-projects": [user: PublicUser];
+  "delete-users": [users: PublicUser[]];
+  "toggle-users-status": [users: PublicUser[]];
 }>();
 </script>
