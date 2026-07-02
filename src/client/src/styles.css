@@ -359,6 +359,21 @@ textarea:focus {
   font-weight: 650;
 }
 
+.project-form .path-input-row {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.project-form .path-input-row input {
+  min-width: 0;
+}
+
+.project-form .path-input-row button {
+  min-height: 38px;
+}
+
 .form-status {
   color: var(--muted);
   font-size: 12px;
@@ -593,6 +608,108 @@ button.danger:hover {
   max-width: 380px;
   padding: 18px;
   width: 100%;
+}
+
+.directory-picker-backdrop {
+  z-index: 60;
+}
+
+.directory-picker {
+  max-height: min(720px, calc(100vh - 48px));
+  max-width: 720px;
+}
+
+.directory-path-bar {
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 8px;
+}
+
+.directory-path-bar code {
+  color: #dce3ef;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-list {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  max-height: 380px;
+  min-height: 220px;
+  overflow: auto;
+}
+
+.directory-row {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 8px;
+}
+
+.directory-row:last-child {
+  border-bottom: 0;
+}
+
+.directory-row.selected {
+  background: rgba(79, 184, 255, 0.08);
+}
+
+.directory-row-main {
+  align-items: center;
+  background: transparent;
+  border-color: transparent;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr);
+  justify-content: stretch;
+  min-width: 0;
+  padding: 6px;
+  text-align: left;
+}
+
+.directory-row-main:hover {
+  background: var(--panel-strong);
+  border-color: var(--line);
+}
+
+.directory-icon {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.directory-row-main strong,
+.directory-row-main small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.directory-row-main small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.directory-dialog-footer {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .modal-panel label {

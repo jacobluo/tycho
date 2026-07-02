@@ -2,6 +2,13 @@ import type { Terminal } from "@xterm/xterm";
 
 export type AgentConfig = { id: string; name: string; command: string; args?: string; cwd: string };
 export type ProjectConfig = { id: string; name: string; path: string; description?: string; managed?: boolean };
+export type DirectoryBrowserEntry = { name: string; path: string };
+export type DirectoryBrowserResponse = {
+  roots: DirectoryBrowserEntry[];
+  currentPath: string | null;
+  parentPath: string | null;
+  entries: DirectoryBrowserEntry[];
+};
 export type UserRole = "admin" | "user";
 export type UserStatus = "active" | "disabled" | "deleted";
 export type PublicUser = {

@@ -37,6 +37,7 @@ import {
   updateManagedProject,
   type RuntimeConfig
 } from "../runtime/config.js";
+import { listDirectories } from "../runtime/directory-browser.js";
 import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
 import { clientDistDir, projectRoot } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
@@ -256,6 +257,33 @@ app.post("/api/sessions", async (request, response) => {
     response.status(202).json({ entry: toPublicAgentEntry(entry), project });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Invalid session request" });
+  }
+});
+
+app.get("/api/directories", async (request, response) => {
+  const user = await requireAdmin(request, response);
+  if (!user) {
+    return;
+  }
+
+  try {
+    const path = typeof request.query.path === "string" ? request.query.path : undefined;
+    response.json(await listDirectories(path));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("outside configured roots")) {
+      response.status(403).json({ error: "Directory is not available" });
+      return;
+    }
+    if (message.includes("not found")) {
+      response.status(404).json({ error: "Directory is not available" });
+      return;
+    }
+    if (message.includes("not a directory")) {
+      response.status(400).json({ error: "Directory is not available" });
+      return;
+    }
+    response.status(400).json({ error: "Directory is not available" });
   }
 });
 

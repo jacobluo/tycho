@@ -1,14 +1,26 @@
 import { expect, test } from "@playwright/test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const tempDirs: string[] = [];
+const directoryBrowserRoot = resolve(".playwright-mcp/directory-root");
 
 function makeProjectDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "tycho-e2e-project-"));
+  mkdirSync(directoryBrowserRoot, { recursive: true });
+  const dir = mkdtempSync(join(directoryBrowserRoot, "tycho-e2e-project-"));
   tempDirs.push(dir);
-  return dir;
+  return realpathSync(dir);
+}
+
+async function chooseProjectDirectory(page: import("@playwright/test").Page, projectPath: string): Promise<void> {
+  const rootPath = realpathSync(directoryBrowserRoot);
+
+  await page.getByRole("button", { name: "Browse" }).click();
+  await expect(page.getByRole("heading", { name: "Choose Project Folder" })).toBeVisible();
+  await page.getByRole("button", { name: `Open ${rootPath}`, exact: true }).click();
+  await page.getByRole("button", { name: `Select ${projectPath}`, exact: true }).click();
+  await page.getByRole("button", { name: "Use This Folder" }).click();
+  await expect(page.getByLabel("Local Path")).toHaveValue(projectPath);
 }
 
 async function login(page: import("@playwright/test").Page, username: string, password: string): Promise<void> {
@@ -79,7 +91,7 @@ test("adds and deletes a managed project", async ({ page }) => {
 
   await page.getByRole("button", { name: "Add Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("E2E Managed Project");
-  await page.getByLabel("Local Path").fill(projectPath);
+  await chooseProjectDirectory(page, projectPath);
   await page.getByLabel("Description").fill("Created by Playwright");
   await page.getByRole("button", { name: "Save Project" }).click();
 
@@ -95,7 +107,8 @@ test("adds and deletes a managed project", async ({ page }) => {
 
   await page.getByRole("button", { name: "Edit Project" }).click();
   await page.getByLabel("Name", { exact: true }).fill("E2E Edited Project");
-  await page.getByLabel("Local Path").fill(editedProjectPath);
+  await page.getByLabel("Local Path").fill("");
+  await chooseProjectDirectory(page, editedProjectPath);
   await page.getByLabel("Description").fill("Edited by Playwright");
   await page.getByRole("button", { name: "Save Project" }).click();
 
@@ -150,7 +163,7 @@ test("boots the Vue Vite client", async ({ page }) => {
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {
-  const missingPath = join(tmpdir(), `tycho-e2e-missing-${Date.now()}`);
+  const missingPath = join(directoryBrowserRoot, `tycho-e2e-missing-${Date.now()}`);
 
   await login(page, "admin", "admin");
   await openProjectManagement(page);
@@ -162,6 +175,42 @@ test("shows a validation error for an invalid project path", async ({ page }) =>
   await expect(page.locator("#projectFormStatus")).toHaveClass(/error/);
   await expect(page.locator("#projectFormStatus")).toContainText("Project path is not a directory");
   await expect(page.getByRole("row", { name: /Missing Project/ })).toHaveCount(0);
+});
+
+test("directory browser API is admin-only and root constrained", async ({ page }) => {
+  await login(page, "admin", "admin");
+  const adminPayload = await page.evaluate(async () => {
+    const response = await fetch("/api/directories");
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type") || "",
+      body: await response.text()
+    };
+  });
+  expect(adminPayload.status).toBe(200);
+  expect(adminPayload.contentType).toContain("application/json");
+  expect(JSON.parse(adminPayload.body).roots.length).toBeGreaterThan(0);
+
+  const outsideStatus = await page.evaluate(async () => {
+    const response = await fetch(`/api/directories?path=${encodeURIComponent("/")}`);
+    return response.status;
+  });
+  expect(outsideStatus).toBe(403);
+
+  await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("New Username").fill("directory-user");
+  await page.getByLabel("New Password").fill("directory-password");
+  await page.getByRole("button", { name: "Save User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
+
+  await logout(page);
+  await login(page, "directory-user", "directory-password");
+  const userStatus = await page.evaluate(async () => {
+    const response = await fetch("/api/directories");
+    return response.status;
+  });
+  expect(userStatus).toBe(403);
 });
 
 test("admin assigns a project and ordinary user cannot manage projects", async ({ page }) => {
