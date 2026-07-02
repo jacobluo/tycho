@@ -56,7 +56,7 @@
         :new-user-form="newUserForm"
         :selected-project="selectedProject"
         :terminal-entries="terminalEntries"
-        :active-pane-id="activePaneId"
+        :selected-window-id="selectedWindowId"
         :connection-label="connectionLabel"
         :project-form-status="projectFormStatus"
         :project-form-tone="projectFormTone"
@@ -122,6 +122,7 @@ import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
+import { resolveSelectedWindowId } from "../../shared/session-selection";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -192,6 +193,13 @@ const routeTitle = computed(() => {
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
 const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
+const selectedWindowId = computed(() =>
+  resolveSelectedWindowId(state.windows, {
+    localActivePaneId: activePaneId.value,
+    serverActivePaneId: state.activePaneId,
+    serverActiveWindowId: state.activeWindowId
+  })
+);
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
@@ -346,10 +354,24 @@ function applyConfig(nextConfig: PublicRuntimeConfig, preferredProjectId = selec
 function applyState(nextState: TuimuxState): void {
   state.connected = nextState.connected;
   state.serverVersion = nextState.serverVersion;
-  state.windows = nextState.windows;
+  state.windows = mergeWindowsPreservingOrder(state.windows, nextState.windows);
   state.panes = nextState.panes;
   state.activeWindowId = nextState.activeWindowId;
   state.activePaneId = nextState.activePaneId;
+  if (activePaneId.value && !nextState.panes.some((pane) => pane.paneId === activePaneId.value)) {
+    activePaneId.value = nextState.activePaneId;
+  }
+}
+
+function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
+  const incomingById = new Map(incomingWindows.map((windowState) => [windowState.id, windowState]));
+  const existingIds = new Set(windows.map((windowState) => windowState.id));
+  const existingWindows = windows.flatMap((windowState) => {
+    const incomingWindow = incomingById.get(windowState.id);
+    return incomingWindow ? [incomingWindow] : [];
+  });
+  const newWindows = incomingWindows.filter((windowState) => !existingIds.has(windowState.id));
+  return [...existingWindows, ...newWindows];
 }
 
 function getProjectId(preferredProjectId?: string): string {
@@ -602,9 +624,12 @@ function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
 }
 
 function focusWindow(windowId: string): void {
-  send({ type: "focus_window", windowId });
   const windowState = state.windows.find((candidate) => candidate.id === windowId);
   const pane = windowState ? paneForWindow(windowState) : undefined;
+  if (pane) {
+    activePaneId.value = pane.paneId;
+  }
+  send({ type: "focus_window", windowId });
   if (pane) {
     focusTerminal(pane.paneId);
   }

@@ -321,6 +321,29 @@ test("session close focus polish: marks active sidebar session", async ({ page }
   await expect(sessionItem).toHaveClass(/active/);
 });
 
+test("single active session selection: selecting sessions keeps one active item and stable card order", async ({ page }) => {
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Stable One");
+  await startNamedSession(page, "Stable Two");
+  await startNamedSession(page, "Stable Three");
+
+  const terminalTitles = page.locator(".terminal-card .terminal-title strong");
+  const initialOrder = await terminalTitles.allTextContents();
+
+  const sidebarTwo = page.locator("#sessionList .session-item", { hasText: "Stable Two" });
+  await sidebarTwo.click();
+  await expect(page.locator("#sessionList .session-item.active")).toHaveCount(1);
+  await expect(sidebarTwo).toHaveClass(/active/);
+  await expect.poll(() => terminalTitles.allTextContents()).toEqual(initialOrder);
+
+  const cardOne = page.locator(".terminal-card", { hasText: "Stable One" });
+  await cardOne.click();
+  const sidebarOne = page.locator("#sessionList .session-item", { hasText: "Stable One" });
+  await expect(page.locator("#sessionList .session-item.active")).toHaveCount(1);
+  await expect(sidebarOne).toHaveClass(/active/);
+  await expect.poll(() => terminalTitles.allTextContents()).toEqual(initialOrder);
+});
+
 test("shows a validation error for an invalid project path", async ({ page }) => {
   const missingPath = join(directoryBrowserRoot, `tycho-e2e-missing-${Date.now()}`);
 

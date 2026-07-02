@@ -42,7 +42,7 @@
             v-else
             :key="windowState.id"
             class="session-item"
-            :class="{ active: state.activeWindowId === windowState.id || activePaneId === windowState.activePaneId }"
+            :class="{ active: selectedWindowId === windowState.id }"
             @click="emit('focus-window', windowState.id)"
           >
             <div class="session-item-main">
@@ -79,7 +79,7 @@
           v-else
           :key="entry.windowState.id"
           class="terminal-card"
-          :class="{ active: state.activeWindowId === entry.windowState.id || activePaneId === entry.pane.paneId }"
+          :class="{ active: selectedWindowId === entry.windowState.id }"
           :data-window-id="entry.windowState.id"
           :data-pane-id="entry.pane.paneId"
           @pointerdown="emit('card-pointer-down', $event, entry)"
@@ -116,7 +116,7 @@ defineProps<{
   selectedProjectId: string;
   selectedProject?: ProjectConfig;
   terminalEntries: TerminalEntry[];
-  activePaneId: string | null;
+  selectedWindowId: string | null;
   connectionLabel: string;
   paneForWindow: (windowState: TuimuxWindow) => TerminalEntry["pane"] | undefined;
 }>();

@@ -33,6 +33,17 @@ export function upsertWindowPreservingOrder(windows: TuimuxWindow[], nextWindow:
   return windows.map((window, currentIndex) => currentIndex === index ? nextWindow : window);
 }
 
+export function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
+  const incomingById = new Map(incomingWindows.map((window) => [window.id, window]));
+  const existingIds = new Set(windows.map((window) => window.id));
+  const existingWindows = windows.flatMap((window) => {
+    const incomingWindow = incomingById.get(window.id);
+    return incomingWindow ? [incomingWindow] : [];
+  });
+  const newWindows = incomingWindows.filter((window) => !existingIds.has(window.id));
+  return [...existingWindows, ...newWindows];
+}
+
 export type TuimuxMessage =
   | { type: "snapshot"; layout: "panes"; windows?: TuimuxWindow[]; panes?: TuimuxPane[]; activeWindowId?: string | null; activePaneId?: string | null; serverVersion?: string }
   | { type: "pane_started"; pane: TuimuxPane }
@@ -215,7 +226,7 @@ export class TuimuxClient extends EventEmitter {
         this.state = {
           connected: true,
           serverVersion: message.serverVersion,
-          windows: message.windows ?? [],
+          windows: mergeWindowsPreservingOrder(this.state.windows, message.windows ?? []),
           panes: message.panes ?? [],
           activeWindowId: message.activeWindowId ?? null,
           activePaneId: message.activePaneId ?? null
