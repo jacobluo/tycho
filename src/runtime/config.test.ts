@@ -31,7 +31,8 @@ beforeEach(() => {
   delete process.env.DEFAULT_PROJECT_ID;
   delete process.env.AGENT_WORKDIR;
   delete process.env.CODEBUDDY_WORKDIR;
-  delete process.env.PROJECTS_DB;
+  const storeDir = makeProjectDir("store");
+  process.env.PROJECTS_DB = join(storeDir, "projects.sqlite");
 });
 
 afterEach(() => {

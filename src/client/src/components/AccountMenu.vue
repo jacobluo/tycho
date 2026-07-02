@@ -1,7 +1,8 @@
 <template>
   <div class="account-menu-wrap">
     <button class="account-menu-trigger" type="button" @click="menuOpen = !menuOpen">
-      {{ currentUser.username }} / {{ currentUser.role }}
+      <span class="account-username">{{ currentUser.username }}</span>
+      <span class="account-role-badge">{{ roleLabel }}</span>
     </button>
     <div v-if="menuOpen" class="account-menu" role="menu">
       <button role="menuitem" type="button" @click="emitAndClose('change-password')">Change Password</button>
@@ -12,10 +13,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { PublicUser } from "../client-types";
 
-defineProps<{
+const props = defineProps<{
   currentUser: PublicUser;
   isAdmin: boolean;
 }>();
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const menuOpen = ref(false);
+const roleLabel = computed(() => props.currentUser.role === "admin" ? "管理员" : "普通用户");
 
 function emitAndClose(event: "change-password" | "admin" | "logout"): void {
   menuOpen.value = false;

@@ -12,6 +12,10 @@ function makeProjectDir(): string {
   return realpathSync(dir);
 }
 
+function roleLabel(username: string): string {
+  return username === "admin" ? "管理员" : "普通用户";
+}
+
 async function chooseProjectDirectory(page: import("@playwright/test").Page, projectPath: string): Promise<void> {
   const rootPath = realpathSync(directoryBrowserRoot);
 
@@ -28,11 +32,11 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
-  await expect(page.getByRole("button", { name: `${username} / ${username === "admin" ? "admin" : "user"}` })).toBeVisible();
+  await expect(page.getByRole("button", { name: `${username} ${roleLabel(username)}` })).toBeVisible();
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: /.+ \/ (admin|user)/ }).click();
+  await page.getByRole("button", { name: /.+ (管理员|普通用户)/ }).click();
 }
 
 async function logout(page: import("@playwright/test").Page): Promise<void> {
@@ -153,7 +157,7 @@ test("changes password from the account menu", async ({ page }) => {
 
   await page.getByLabel("Password").fill("changed-password");
   await page.getByRole("button", { name: "Log In" }).click();
-  await expect(page.getByRole("button", { name: "password-user / user" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "password-user 普通用户" })).toBeVisible();
 });
 
 test("boots the Vue Vite client", async ({ page }) => {
