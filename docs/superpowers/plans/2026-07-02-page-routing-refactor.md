@@ -1,0 +1,269 @@
+# Page Routing Refactor Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Introduce routed Workspace and Admin surfaces so workspace operations, admin management, and account actions live in clear product areas.
+
+**Architecture:** Add Vue Router and keep `App.vue` as the authenticated shell and shared state owner. Extract route views and focused components from the current monolithic UI, preserving existing API/WebSocket behavior while changing page composition.
+
+**Tech Stack:** Vue 3, Vue Router, Vite, TypeScript, Playwright E2E.
+
+---
+
+## File Structure
+
+- `package.json`, `pnpm-lock.yaml`: Add `vue-router`.
+- `src/client/src/main.ts`: Install router.
+- `src/client/src/router.ts`: Define `/`, `/admin`, `/admin/projects`, `/admin/users`.
+- `src/client/src/App.vue`: Shell, shared state, top bar, router-view props.
+- `src/client/src/components/AccountMenu.vue`: Account dropdown.
+- `src/client/src/components/ChangePasswordDialog.vue`: Password modal.
+- `src/client/src/views/WorkspaceView.vue`: Workspace route.
+- `src/client/src/views/AdminLayout.vue`: Admin frame with left management nav.
+- `src/client/src/views/ProjectManagementView.vue`: Project management route.
+- `src/client/src/views/UserManagementView.vue`: User management route.
+- `src/client/src/styles.css`: Layout updates.
+- `e2e/project-management.spec.ts`: Route and layout assertions.
+
+### Task 1: Router Dependency and Failing Route Tests
+
+**Files:**
+- Modify: `package.json`
+- Modify: `pnpm-lock.yaml`
+- Modify: `e2e/project-management.spec.ts`
+
+- [ ] **Step 1: Add Vue Router dependency**
+
+Run:
+
+```bash
+pnpm add vue-router
+```
+
+Expected: `package.json` and `pnpm-lock.yaml` include `vue-router`.
+
+- [ ] **Step 2: Write failing E2E route/layout assertions**
+
+Update `e2e/project-management.spec.ts` so admin management expects:
+
+```ts
+await expect(page).toHaveURL(/\/admin\/projects$/);
+await expect(page.getByRole("navigation", { name: "Admin Management" })).toBeVisible();
+await expect(page.locator(".workspace-sidebar")).toHaveCount(0);
+```
+
+Update user management navigation to expect:
+
+```ts
+await page.getByRole("link", { name: "User Management" }).click();
+await expect(page).toHaveURL(/\/admin\/users$/);
+```
+
+Add a direct-route ordinary user assertion:
+
+```ts
+await page.goto("/admin/projects");
+await expect(page).toHaveURL(/\/$/);
+await expect(page.getByRole("menuitem", { name: "Admin Management" })).toHaveCount(0);
+```
+
+- [ ] **Step 3: Run focused E2E and verify RED**
+
+Run:
+
+```bash
+pnpm exec playwright test e2e/project-management.spec.ts --grep "managed project|ordinary user"
+```
+
+Expected: FAIL because routes and admin layout do not exist yet.
+
+### Task 2: Router Shell and Component Extraction
+
+**Files:**
+- Create: `src/client/src/router.ts`
+- Create: `src/client/src/components/AccountMenu.vue`
+- Create: `src/client/src/components/ChangePasswordDialog.vue`
+- Modify: `src/client/src/main.ts`
+- Modify: `src/client/src/App.vue`
+
+- [ ] **Step 1: Create router**
+
+Create `src/client/src/router.ts` with route names:
+
+```ts
+import { createRouter, createWebHistory } from "vue-router";
+import WorkspaceView from "./views/WorkspaceView.vue";
+import AdminLayout from "./views/AdminLayout.vue";
+import ProjectManagementView from "./views/ProjectManagementView.vue";
+import UserManagementView from "./views/UserManagementView.vue";
+
+export const router = createRouter({
+  history: createWebHistory(),
+  routes: [
+    { path: "/", name: "workspace", component: WorkspaceView },
+    {
+      path: "/admin",
+      component: AdminLayout,
+      children: [
+        { path: "", redirect: "/admin/projects" },
+        { path: "projects", name: "admin-projects", component: ProjectManagementView },
+        { path: "users", name: "admin-users", component: UserManagementView }
+      ]
+    }
+  ]
+});
+```
+
+- [ ] **Step 2: Install router in main**
+
+Modify `src/client/src/main.ts`:
+
+```ts
+import { createApp } from "vue";
+import "@xterm/xterm/css/xterm.css";
+import "./styles.css";
+import App from "./App.vue";
+import { router } from "./router";
+
+window.__TYCHO_CLIENT__ = "vue-vite";
+
+createApp(App).use(router).mount("#app");
+```
+
+- [ ] **Step 3: Extract account menu**
+
+Create `AccountMenu.vue` with props `currentUser` and emits `change-password`, `admin`, `logout`.
+
+- [ ] **Step 4: Extract password dialog**
+
+Create `ChangePasswordDialog.vue` with props for open/busy/status/tone and emits `close` and `submit`.
+
+- [ ] **Step 5: Refactor App shell**
+
+Keep auth and data functions in `App.vue`, render:
+
+- Login shell when unauthenticated.
+- `app-shell routed-shell` when authenticated.
+- `header.app-topbar` with brand, route title, workspace project switcher only on `/`, and `AccountMenu`.
+- `router-view` with shared props/actions.
+- `ChangePasswordDialog`.
+
+Add a watcher that redirects non-admin users away from `/admin`.
+
+### Task 3: Workspace and Admin Views
+
+**Files:**
+- Create: `src/client/src/views/WorkspaceView.vue`
+- Create: `src/client/src/views/AdminLayout.vue`
+- Create: `src/client/src/views/ProjectManagementView.vue`
+- Create: `src/client/src/views/UserManagementView.vue`
+- Modify: `src/client/src/styles.css`
+
+- [ ] **Step 1: Create WorkspaceView**
+
+Move workspace-only UI into `WorkspaceView.vue`:
+
+- Connection status.
+- Project path/description.
+- Agent buttons.
+- Session list.
+- Workspace header.
+- Terminal grid.
+
+Expose event emits for create session, focus/close/focus pane, terminal host registration, and project persistence.
+
+- [ ] **Step 2: Create AdminLayout**
+
+Create admin shell:
+
+```html
+<section class="admin-shell">
+  <nav class="admin-sidebar" aria-label="Admin Management">
+    <RouterLink to="/admin/projects">Project Management</RouterLink>
+    <RouterLink to="/admin/users">User Management</RouterLink>
+  </nav>
+  <RouterView />
+</section>
+```
+
+- [ ] **Step 3: Create ProjectManagementView**
+
+Move project form/delete/status UI into route view. Keep IDs used by E2E:
+
+- `#projectForm`
+- `#projectFormStatus`
+- `#projectSelect`
+- `#projectPath`
+- `#projectDescription`
+
+- [ ] **Step 4: Create UserManagementView**
+
+Move user creation/list/assignment UI into route view. Keep IDs and data attributes used by E2E:
+
+- `#userFormStatus`
+- `[data-user-row="..."]`
+- `.user-status-message`
+
+- [ ] **Step 5: Update styles**
+
+Adjust CSS for:
+
+- `.routed-shell`
+- `.app-topbar`
+- `.workspace-layout`
+- `.workspace-sidebar`
+- `.admin-shell`
+- `.admin-sidebar`
+- `.admin-content`
+
+Do not introduce a new visual palette.
+
+### Task 4: Verification and Commit
+
+**Files:**
+- All changed files.
+
+- [ ] **Step 1: Run typecheck**
+
+Run:
+
+```bash
+scripts/typecheck
+```
+
+Expected: PASS.
+
+- [ ] **Step 2: Run E2E**
+
+Run:
+
+```bash
+scripts/e2e
+```
+
+Expected: PASS.
+
+- [ ] **Step 3: Run full verify**
+
+Run:
+
+```bash
+scripts/verify
+```
+
+Expected: PASS.
+
+- [ ] **Step 4: Update this plan**
+
+Mark completed checkboxes and record any implementation notes.
+
+- [ ] **Step 5: Commit**
+
+Run:
+
+```bash
+git add package.json pnpm-lock.yaml src/client/src/main.ts src/client/src/router.ts src/client/src/App.vue src/client/src/components src/client/src/views src/client/src/styles.css e2e/project-management.spec.ts docs/superpowers/plans/2026-07-02-page-routing-refactor.md
+git commit -m "feat: add routed workspace and admin layouts"
+```
+
+Expected: commit succeeds after verification.
