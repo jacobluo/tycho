@@ -27,7 +27,7 @@
 - Modify: `src/runtime/config.test.ts`
 - Modify: `src/server/index.ts`
 
-- [ ] **Step 1: Write failing projection tests**
+- [x] **Step 1: Write failing projection tests**
 
 Add these imports to `src/runtime/config.test.ts`:
 
@@ -93,7 +93,7 @@ Add this second test:
   });
 ```
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run:
 
@@ -103,7 +103,7 @@ scripts/test --test-name-pattern "browser-safe"
 
 Expected: FAIL with TypeScript/import errors because `toPublicAgentEntry` and `toPublicTuimuxState` do not exist.
 
-- [ ] **Step 3: Implement public projection helpers**
+- [x] **Step 3: Implement public projection helpers**
 
 In `src/runtime/config.ts`, after `RuntimeConfig`, add:
 
@@ -168,7 +168,7 @@ export function toPublicTuimuxState(state: {
 }
 ```
 
-- [ ] **Step 4: Wire projections into server responses**
+- [x] **Step 4: Wire projections into server responses**
 
 Modify imports in `src/server/index.ts`:
 
@@ -244,7 +244,7 @@ and:
 send(socket, { type: "session_requested", entry: toPublicAgentEntry(entry), project });
 ```
 
-- [ ] **Step 5: Run focused projection tests and verify GREEN**
+- [x] **Step 5: Run focused projection tests and verify GREEN**
 
 Run:
 
@@ -261,7 +261,7 @@ Expected: PASS.
 - Modify: `src/runtime/auth.test.ts`
 - Modify: `src/server/index.ts`
 
-- [ ] **Step 1: Write failing auth hardening tests**
+- [x] **Step 1: Write failing auth hardening tests**
 
 Add these imports to `src/runtime/auth.test.ts`:
 
@@ -352,7 +352,7 @@ Add tests:
   });
 ```
 
-- [ ] **Step 2: Run focused auth tests and verify RED**
+- [x] **Step 2: Run focused auth tests and verify RED**
 
 Run:
 
@@ -362,7 +362,7 @@ scripts/test --test-name-pattern "production bootstrap|password policy|login thr
 
 Expected: FAIL because throttle helpers do not exist and password/bootstrap behavior is not enforced.
 
-- [ ] **Step 3: Implement password policy and bootstrap guard**
+- [x] **Step 3: Implement password policy and bootstrap guard**
 
 In `src/runtime/auth.ts`, add:
 
@@ -409,7 +409,7 @@ with:
 const password = adminBootstrapPassword();
 ```
 
-- [ ] **Step 4: Preserve development tests with strong passwords**
+- [x] **Step 4: Preserve development tests with strong passwords**
 
 Update existing tests in `src/runtime/auth.test.ts` to use passwords with at least 12 characters, except the default bootstrap test which still verifies development `admin/admin` if the guard intentionally allows it.
 
@@ -425,7 +425,7 @@ and:
 await updateUserPassword(user.id, "new-password-123");
 ```
 
-- [ ] **Step 5: Implement login throttle helpers**
+- [x] **Step 5: Implement login throttle helpers**
 
 In `src/runtime/auth.ts`, add:
 
@@ -479,7 +479,7 @@ export function resetLoginThrottle(key?: string): void {
 }
 ```
 
-- [ ] **Step 6: Wire throttle into login endpoint**
+- [x] **Step 6: Wire throttle into login endpoint**
 
 Modify imports in `src/server/index.ts`:
 
@@ -523,7 +523,7 @@ After successful login:
 resetLoginThrottle(throttleKey);
 ```
 
-- [ ] **Step 7: Run focused auth tests and verify GREEN**
+- [x] **Step 7: Run focused auth tests and verify GREEN**
 
 Run:
 
@@ -540,7 +540,7 @@ Expected: PASS.
 - Create: `src/runtime/security.test.ts`
 - Modify: `src/server/index.ts`
 
-- [ ] **Step 1: Write failing security helper tests**
+- [x] **Step 1: Write failing security helper tests**
 
 Create `src/runtime/security.test.ts`:
 
@@ -586,7 +586,7 @@ describe("security helpers", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused security tests and verify RED**
+- [x] **Step 2: Run focused security tests and verify RED**
 
 Run:
 
@@ -596,7 +596,7 @@ scripts/test --test-name-pattern "security helpers"
 
 Expected: FAIL because `src/runtime/security.ts` does not exist.
 
-- [ ] **Step 3: Implement security helpers**
+- [x] **Step 3: Implement security helpers**
 
 Create `src/runtime/security.ts`:
 
@@ -648,7 +648,7 @@ export function isAllowedWebSocketOrigin(
 }
 ```
 
-- [ ] **Step 4: Wire cookie attributes into server**
+- [x] **Step 4: Wire cookie attributes into server**
 
 Modify imports in `src/server/index.ts`:
 
@@ -680,7 +680,7 @@ function clearSessionCookie(): string {
 }
 ```
 
-- [ ] **Step 5: Wire WebSocket origin guard into server**
+- [x] **Step 5: Wire WebSocket origin guard into server**
 
 At the top of `wss.on("connection", async (socket, request) => { ... })`, add:
 
@@ -692,7 +692,7 @@ At the top of `wss.on("connection", async (socket, request) => { ... })`, add:
   }
 ```
 
-- [ ] **Step 6: Run focused security tests and verify GREEN**
+- [x] **Step 6: Run focused security tests and verify GREEN**
 
 Run:
 
@@ -707,7 +707,9 @@ Expected: PASS.
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-02-security-hardening.md`
 
-- [ ] **Step 1: Run typecheck**
+**Implementation Note:** Full verification exposed that `tuimux` requires `bun` at runtime and the local environment did not have a global Bun binary. The implementation adds `bun` as a devDependency and approves its pnpm build script so `pnpm run dev`, Playwright, and `scripts/verify` work from project-local dependencies. E2E test data was also updated to use strong passwords and avoid mutating the default admin password.
+
+- [x] **Step 1: Run typecheck**
 
 Run:
 
@@ -717,7 +719,7 @@ scripts/typecheck
 
 Expected: PASS.
 
-- [ ] **Step 2: Run unit tests**
+- [x] **Step 2: Run unit tests**
 
 Run:
 
@@ -727,7 +729,7 @@ scripts/test
 
 Expected: PASS.
 
-- [ ] **Step 3: Run full verification**
+- [x] **Step 3: Run full verification**
 
 Run:
 
@@ -737,11 +739,11 @@ scripts/verify
 
 Expected: PASS, including Playwright E2E and production build.
 
-- [ ] **Step 4: Update this plan**
+- [x] **Step 4: Update this plan**
 
 Mark completed checkboxes for every implemented step. If implementation diverged from the plan, add a short note under the affected task explaining why.
 
-- [ ] **Step 5: Commit implementation**
+- [x] **Step 5: Commit implementation**
 
 Run:
 

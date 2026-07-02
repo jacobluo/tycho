@@ -48,6 +48,32 @@ export type RuntimeConfig = {
   webPort: number;
 };
 
+export type PublicAgentEntry = Omit<AgentEntry, "env">;
+
+export type PublicTuimuxPane = {
+  paneId: string;
+  entry: PublicAgentEntry;
+  status: "running" | "stopped" | "error";
+  buffer: string;
+  runId?: number;
+};
+
+export type PublicTuimuxWindow = {
+  id: string;
+  title: string;
+  layout: unknown;
+  activePaneId: string;
+};
+
+export type PublicTuimuxState = {
+  connected: boolean;
+  serverVersion?: string;
+  windows: PublicTuimuxWindow[];
+  panes: PublicTuimuxPane[];
+  activeWindowId: string | null;
+  activePaneId: string | null;
+};
+
 function envCommand(agent: AgentId, fallback: string): string {
   return process.env[`${agent.toUpperCase()}_CMD`] || fallback;
 }
@@ -372,6 +398,35 @@ export function getPublicRuntimeConfig(runtime = readRuntimeConfig(), projects =
     projects,
     defaultProjectId,
     webPort: runtime.webPort
+  };
+}
+
+export function toPublicAgentEntry(entry: AgentEntry): PublicAgentEntry {
+  const { env: _env, ...publicEntry } = entry;
+  return publicEntry;
+}
+
+export function toPublicTuimuxState(state: {
+  connected: boolean;
+  serverVersion?: string;
+  windows: PublicTuimuxWindow[];
+  panes: Array<{
+    paneId: string;
+    entry: AgentEntry;
+    status: "running" | "stopped" | "error";
+    buffer: string;
+    runId?: number;
+  }>;
+  activeWindowId: string | null;
+  activePaneId: string | null;
+}): PublicTuimuxState {
+  return {
+    ...state,
+    windows: state.windows.map((window) => ({ ...window })),
+    panes: state.panes.map((pane) => ({
+      ...pane,
+      entry: toPublicAgentEntry(pane.entry)
+    }))
   };
 }
 

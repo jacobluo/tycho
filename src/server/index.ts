@@ -10,9 +10,12 @@ import {
   createUser,
   deleteSession,
   filterProjectsForUser,
+  getLoginThrottle,
   getSessionUser,
   listUsers,
   loginUser,
+  recordFailedLogin,
+  resetLoginThrottle,
   softDeleteUser,
   updateUserPassword,
   updateUserRole,
@@ -29,8 +32,11 @@ import {
   getPublicRuntimeConfig,
   readRuntimeConfig,
   removeManagedProject,
+  toPublicAgentEntry,
+  toPublicTuimuxState,
   type RuntimeConfig
 } from "../runtime/config.js";
+import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
 import { clientDistDir, projectRoot } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
 
@@ -62,11 +68,28 @@ function readCookie(request: IncomingMessage, name: string): string | undefined 
 }
 
 function sessionCookie(token: string): string {
-  return `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionMaxAgeSeconds}`;
+  return [
+    `${sessionCookieName}=${encodeURIComponent(token)}`,
+    "Path=/",
+    `Max-Age=${sessionMaxAgeSeconds}`,
+    ...sessionCookieAttributes()
+  ].join("; ");
 }
 
 function clearSessionCookie(): string {
-  return `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return [
+    `${sessionCookieName}=`,
+    "Path=/",
+    "Max-Age=0",
+    ...sessionCookieAttributes()
+  ].join("; ");
+}
+
+function loginThrottleKey(request: IncomingMessage, username: string): string {
+  const forwardedFor = request.headers["x-forwarded-for"];
+  const forwardedIp = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(",")[0];
+  const ip = forwardedIp?.trim() || request.socket.remoteAddress || "unknown";
+  return `${username.trim().toLowerCase()}:${ip}`;
 }
 
 async function authenticateRequest(request: IncomingMessage): Promise<PublicUser | null> {
@@ -105,30 +128,36 @@ function paneVisibleToUser(user: PublicUser, pane: { entry: { env?: Record<strin
 function filterStateForUser(user: PublicUser) {
   const state = tuimux.getState();
   if (user.role === "admin") {
-    return state;
+    return toPublicTuimuxState(state);
   }
   const panes = state.panes.filter((pane) => paneVisibleToUser(user, pane));
   const paneIds = new Set(panes.map((pane) => pane.paneId));
   const windows = state.windows.filter((window) => paneIds.has(window.activePaneId));
   const activeWindowId = windows.some((window) => window.id === state.activeWindowId) ? state.activeWindowId : null;
   const activePaneId = paneIds.has(state.activePaneId || "") ? state.activePaneId : null;
-  return {
+  return toPublicTuimuxState({
     ...state,
     windows,
     panes,
     activeWindowId,
     activePaneId
-  };
+  });
 }
 
-function windowVisibleToUser(user: PublicUser, windowId: string): boolean {
-  const state = filterStateForUser(user);
-  return state.windows.some((window) => window.id === windowId);
+function internalWindowVisibleToUser(user: PublicUser, windowId: string): boolean {
+  const state = tuimux.getState();
+  if (user.role === "admin") {
+    return state.windows.some((window) => window.id === windowId);
+  }
+  const visiblePaneIds = new Set(
+    state.panes.filter((pane) => paneVisibleToUser(user, pane)).map((pane) => pane.paneId)
+  );
+  return state.windows.some((window) => window.id === windowId && visiblePaneIds.has(window.activePaneId));
 }
 
-function paneVisibleById(user: PublicUser, paneId: string): boolean {
-  const state = filterStateForUser(user);
-  return state.panes.some((pane) => pane.paneId === paneId);
+function internalPaneVisibleById(user: PublicUser, paneId: string): boolean {
+  const state = tuimux.getState();
+  return state.panes.some((pane) => pane.paneId === paneId && paneVisibleToUser(user, pane));
 }
 
 async function userForSocket(socket: WebSocket): Promise<PublicUser | null> {
@@ -144,11 +173,19 @@ app.post("/api/auth/login", async (request, response) => {
   try {
     const username = typeof request.body?.username === "string" ? request.body.username : "";
     const password = typeof request.body?.password === "string" ? request.body.password : "";
+    const throttleKey = loginThrottleKey(request, username);
+    const throttle = getLoginThrottle(throttleKey);
+    if (throttle.blocked) {
+      response.status(429).json({ error: "Too many failed login attempts. Try again later." });
+      return;
+    }
     const user = await loginUser(username, password);
     if (!user) {
+      recordFailedLogin(throttleKey);
       response.status(401).json({ error: "Invalid username or password" });
       return;
     }
+    resetLoginThrottle(throttleKey);
     const session = await createSession(user.id);
     response.setHeader("set-cookie", sessionCookie(session.token));
     response.json({ user });
@@ -215,7 +252,7 @@ app.post("/api/sessions", async (request, response) => {
       REMOTE_TUI_USERNAME: user.username
     });
     tuimux.createWindow(entry);
-    response.status(202).json({ entry, project });
+    response.status(202).json({ entry: toPublicAgentEntry(entry), project });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Invalid session request" });
   }
@@ -330,7 +367,7 @@ app.delete("/api/windows/:windowId", async (request, response) => {
   if (!user) {
     return;
   }
-  if (!windowVisibleToUser(user, request.params.windowId)) {
+  if (!internalWindowVisibleToUser(user, request.params.windowId)) {
     response.status(403).json({ error: "Window access denied" });
     return;
   }
@@ -378,6 +415,11 @@ function broadcastConfig(): void {
 }
 
 wss.on("connection", async (socket, request) => {
+  if (!isAllowedWebSocketOrigin(request.headers.origin, request.headers.host)) {
+    send(socket, { type: "error", message: "Origin not allowed" });
+    socket.close(1008, "Origin not allowed");
+    return;
+  }
   const token = readCookie(request, sessionCookieName);
   const user = await getSessionUser(token);
   if (!token || !user) {
@@ -413,32 +455,32 @@ wss.on("connection", async (socket, request) => {
             REMOTE_TUI_USERNAME: socketUser.username
           });
           tuimux.createWindow(entry);
-          send(socket, { type: "session_requested", entry, project });
+          send(socket, { type: "session_requested", entry: toPublicAgentEntry(entry), project });
           break;
         }
         case "input":
-          if (!paneVisibleById(socketUser, String(message.paneId))) {
+          if (!internalPaneVisibleById(socketUser, String(message.paneId))) {
             send(socket, { type: "error", message: "Pane access denied" });
             break;
           }
           tuimux.input(String(message.paneId), String(message.data ?? ""));
           break;
         case "resize":
-          if (!paneVisibleById(socketUser, String(message.paneId))) {
+          if (!internalPaneVisibleById(socketUser, String(message.paneId))) {
             send(socket, { type: "error", message: "Pane access denied" });
             break;
           }
           tuimux.resizePane(String(message.paneId), Number(message.cols || 80), Number(message.rows || 24));
           break;
         case "close_window":
-          if (!windowVisibleToUser(socketUser, String(message.windowId))) {
+          if (!internalWindowVisibleToUser(socketUser, String(message.windowId))) {
             send(socket, { type: "error", message: "Window access denied" });
             break;
           }
           tuimux.closeWindow(String(message.windowId));
           break;
         case "focus_window":
-          if (typeof message.windowId === "string" && !windowVisibleToUser(socketUser, message.windowId)) {
+          if (typeof message.windowId === "string" && !internalWindowVisibleToUser(socketUser, message.windowId)) {
             send(socket, { type: "error", message: "Window access denied" });
             break;
           }
@@ -468,7 +510,7 @@ tuimux.on("message", (message: TuimuxMessage) => {
   if (message.type === "pane_output") {
     for (const client of wss.clients) {
       void userForSocket(client).then((user) => {
-        if (user && paneVisibleById(user, message.paneId)) {
+        if (user && internalPaneVisibleById(user, message.paneId)) {
           send(client, { type: "pane_output", paneId: message.paneId, data: message.data });
         }
       });

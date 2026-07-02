@@ -9,7 +9,9 @@ import {
   getProject,
   getPublicRuntimeConfig,
   removeManagedProject,
-  readRuntimeConfig
+  readRuntimeConfig,
+  toPublicAgentEntry,
+  toPublicTuimuxState
 } from "./config.js";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -93,6 +95,47 @@ describe("runtime config", () => {
     assert.equal(entry.cwd, projectPath);
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_ID, "session");
     assert.equal(entry.env?.REMOTE_TUI_PROJECT_PATH, projectPath);
+  });
+
+  test("browser-safe session entries omit env while internal entries keep it", () => {
+    const projectPath = makeProjectDir("safe-entry");
+    process.env.CODEBUDDY_TOKEN = "unit-test-token";
+    process.env.CODEBUDDY_ENV_JSON = JSON.stringify({ EXTRA_SECRET: "hidden" });
+    const runtime = readRuntimeConfig();
+    const agent = runtime.agents.find((candidate) => candidate.id === "codebuddy")!;
+    const project = { id: "safe-entry", name: "Safe Entry", path: projectPath };
+
+    const entry = createSessionEntry(agent, project, "Safe entry");
+    const publicEntry = toPublicAgentEntry(entry);
+
+    assert.equal(entry.env?.CODEBUDDY_TOKEN, "unit-test-token");
+    assert.equal(entry.env?.EXTRA_SECRET, "hidden");
+    assert.equal("env" in publicEntry, false);
+    assert.equal(publicEntry.id, entry.id);
+    assert.equal(publicEntry.name, entry.name);
+    assert.equal(publicEntry.cwd, projectPath);
+  });
+
+  test("browser-safe tuimux state omits nested pane env", () => {
+    const projectPath = makeProjectDir("safe-state");
+    const runtime = readRuntimeConfig();
+    const project = { id: "safe-state", name: "Safe State", path: projectPath };
+    const entry = createSessionEntry(runtime.agents[0], project, "Safe state", {
+      REMOTE_TUI_USER_ID: "user-1",
+      SECRET_VALUE: "hidden"
+    });
+
+    const publicState = toPublicTuimuxState({
+      connected: true,
+      windows: [{ id: "window-1", title: "Safe state", layout: {}, activePaneId: "pane-1" }],
+      panes: [{ paneId: "pane-1", entry, status: "running", buffer: "hello" }],
+      activeWindowId: "window-1",
+      activePaneId: "pane-1"
+    });
+
+    assert.equal("env" in publicState.panes[0].entry, false);
+    assert.equal(publicState.panes[0].entry.name, "Safe state");
+    assert.equal(publicState.panes[0].buffer, "hello");
   });
 
   test("public config default project falls back to visible projects", () => {
