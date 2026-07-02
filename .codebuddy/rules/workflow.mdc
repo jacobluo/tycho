@@ -12,7 +12,8 @@ provider:
 ## 开始前流程
 
 - 开始任何非 trivial 实现前，必须先使用相关 Superpowers skills。
-- 有意义的产品或架构变更至少使用 `superpowers:using-superpowers`、`superpowers:writing-plans`、`superpowers:test-driven-development`。
+- 有意义的产品或架构变更至少使用 `superpowers:using-superpowers`、`superpowers:brainstorming`、`superpowers:writing-plans`、`superpowers:test-driven-development`。
+- 新产品能力、权限模型、数据模型、架构边界变更，必须先 brainstorming，再写 spec/plan。
 - 不确定是否属于有意义变更时，按有意义变更处理。
 - 编码前必须先创建或更新 spec 和 plan：
   - Spec 放在 `docs/superpowers/specs`。
