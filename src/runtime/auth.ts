@@ -7,6 +7,18 @@ import { projectsDbPath } from "../shared/paths.js";
 
 const scrypt = promisify(scryptCallback);
 const SESSION_DAYS = 7;
+const MIN_PASSWORD_LENGTH = 12;
+const LOGIN_THROTTLE_WINDOW_MS = 10 * 60 * 1000;
+const LOGIN_THROTTLE_BLOCK_MS = 10 * 60 * 1000;
+const LOGIN_THROTTLE_MAX_FAILURES = 5;
+
+type LoginThrottleRecord = {
+  failures: number;
+  firstFailureAt: number;
+  blockedUntil: number;
+};
+
+const loginThrottle = new Map<string, LoginThrottleRecord>();
 
 export type UserRole = "admin" | "user";
 export type UserStatus = "active" | "disabled" | "deleted";
@@ -92,10 +104,32 @@ function assertPassword(password: string): void {
   }
 }
 
+function assertNewPassword(password: string): void {
+  assertPassword(password);
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+}
+
 function assertRole(role: UserRole): void {
   if (role !== "admin" && role !== "user") {
     throw new Error("Invalid user role");
   }
+}
+
+function isProduction(): boolean {
+  return process.env.NODE_ENV === "production";
+}
+
+function adminBootstrapPassword(): string {
+  if (process.env.TYCHO_ADMIN_PASSWORD) {
+    assertNewPassword(process.env.TYCHO_ADMIN_PASSWORD);
+    return process.env.TYCHO_ADMIN_PASSWORD;
+  }
+  if (isProduction() && process.env.TYCHO_ALLOW_DEFAULT_ADMIN_PASSWORD !== "1") {
+    throw new Error("TYCHO_ADMIN_PASSWORD is required when bootstrapping admin in production");
+  }
+  return "admin";
 }
 
 function hashToken(token: string): string {
@@ -177,7 +211,7 @@ export async function bootstrapAdminUser(): Promise<User> {
 
     const id = randomUUID();
     const username = normalizeUsername(process.env.TYCHO_ADMIN_USERNAME || "admin");
-    const password = process.env.TYCHO_ADMIN_PASSWORD || "admin";
+    const password = adminBootstrapPassword();
     const passwordHash = await hashPassword(password);
     const timestamp = nowIso();
     db.prepare(`
@@ -192,7 +226,7 @@ export async function bootstrapAdminUser(): Promise<User> {
 
 export async function createUser(input: CreateUserInput): Promise<PublicUser> {
   const username = normalizeUsername(input.username);
-  assertPassword(input.password);
+  assertNewPassword(input.password);
   assertRole(input.role);
   const db = openAuthDb();
   try {
@@ -301,6 +335,7 @@ export async function deleteSession(token: string | undefined): Promise<boolean>
 }
 
 export async function updateUserPassword(userId: string, password: string): Promise<PublicUser> {
+  assertNewPassword(password);
   const passwordHash = await hashPassword(password);
   const db = openAuthDb();
   try {
@@ -318,7 +353,7 @@ export async function updateUserPassword(userId: string, password: string): Prom
 
 export async function changeOwnPassword(userId: string, currentPassword: string, newPassword: string): Promise<PublicUser> {
   assertPassword(currentPassword);
-  assertPassword(newPassword);
+  assertNewPassword(newPassword);
   const db = openAuthDb();
   try {
     const user = getUserById(db, userId);
@@ -424,4 +459,41 @@ export function filterProjectsForUser<T extends { id: string }>(projects: T[], u
     return projects;
   }
   return projects.filter((project) => user.projectIds.includes(project.id));
+}
+
+export function getLoginThrottle(key: string, now = Date.now()): { blocked: boolean; retryAfterSeconds: number } {
+  const record = loginThrottle.get(key);
+  if (!record) {
+    return { blocked: false, retryAfterSeconds: 0 };
+  }
+  if (record.blockedUntil > now) {
+    return {
+      blocked: true,
+      retryAfterSeconds: Math.ceil((record.blockedUntil - now) / 1000)
+    };
+  }
+  if (now - record.firstFailureAt > LOGIN_THROTTLE_WINDOW_MS) {
+    loginThrottle.delete(key);
+  }
+  return { blocked: false, retryAfterSeconds: 0 };
+}
+
+export function recordFailedLogin(key: string, now = Date.now()): void {
+  const existing = loginThrottle.get(key);
+  const record = !existing || now - existing.firstFailureAt > LOGIN_THROTTLE_WINDOW_MS
+    ? { failures: 0, firstFailureAt: now, blockedUntil: 0 }
+    : existing;
+  record.failures += 1;
+  if (record.failures >= LOGIN_THROTTLE_MAX_FAILURES) {
+    record.blockedUntil = now + LOGIN_THROTTLE_BLOCK_MS;
+  }
+  loginThrottle.set(key, record);
+}
+
+export function resetLoginThrottle(key?: string): void {
+  if (key) {
+    loginThrottle.delete(key);
+    return;
+  }
+  loginThrottle.clear();
 }

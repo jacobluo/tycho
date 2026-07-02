@@ -20,7 +20,7 @@ async function login(page: import("@playwright/test").Page, username: string, pa
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
-  await page.getByRole("button", { name: /admin \/ admin|alice \/ user/ }).click();
+  await page.getByRole("button", { name: /.+ \/ (admin|user)/ }).click();
 }
 
 async function logout(page: import("@playwright/test").Page): Promise<void> {
@@ -84,33 +84,33 @@ test("adds and deletes a managed project", async ({ page }) => {
 
 test("changes password from the account menu", async ({ page }) => {
   await login(page, "admin", "admin");
+  await openUserManagement(page);
+  await page.getByLabel("New Username").fill("password-user");
+  await page.getByLabel("New Password").fill("initial-password");
+  await page.getByLabel("New Role").selectOption("user");
+  await page.getByRole("button", { name: "Create User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
 
+  await logout(page);
+  await login(page, "password-user", "initial-password");
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Change Password" }).click();
   await expect(page.getByRole("heading", { name: "Change Password" })).toBeVisible();
-  await page.getByLabel("Current Password").fill("admin");
-  await page.getByLabel("New Password").fill("changed-admin");
+  await page.getByLabel("Current Password").fill("initial-password");
+  await page.getByLabel("New Password").fill("changed-password");
   await page.getByRole("button", { name: "Save Password" }).click();
   await expect(page.locator("#passwordFormStatus")).toHaveText("Password changed");
   await page.getByRole("button", { name: "Close" }).click();
 
   await logout(page);
-  await page.getByLabel("Username").fill("admin");
-  await page.getByLabel("Password").fill("admin");
+  await page.getByLabel("Username").fill("password-user");
+  await page.getByLabel("Password").fill("initial-password");
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page.locator(".login-panel .form-status")).toHaveText("Invalid username or password");
 
-  await page.getByLabel("Password").fill("changed-admin");
+  await page.getByLabel("Password").fill("changed-password");
   await page.getByRole("button", { name: "Log In" }).click();
-  await expect(page.getByRole("button", { name: "admin / admin" })).toBeVisible();
-
-  await openAccountMenu(page);
-  await page.getByRole("menuitem", { name: "Change Password" }).click();
-  await page.getByLabel("Current Password").fill("changed-admin");
-  await page.getByLabel("New Password").fill("admin");
-  await page.getByRole("button", { name: "Save Password" }).click();
-  await expect(page.locator("#passwordFormStatus")).toHaveText("Password changed");
-  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("button", { name: "password-user / user" })).toBeVisible();
 });
 
 test("boots the Vue Vite client", async ({ page }) => {
@@ -146,7 +146,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
 
   await openUserManagement(page);
   await page.getByLabel("New Username").fill("alice");
-  await page.getByLabel("New Password").fill("secret");
+  await page.getByLabel("New Password").fill("secret-secret");
   await page.getByLabel("New Role").selectOption("user");
   await page.getByRole("button", { name: "Create User" }).click();
   await expect(page.locator("#userFormStatus")).toHaveText("User created");
@@ -158,7 +158,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await expect(aliceRow.locator(".user-status-message")).toHaveText("Projects saved");
 
   await logout(page);
-  await login(page, "alice", "secret");
+  await login(page, "alice", "secret-secret");
 
   await expect(page.locator("#projectSelect")).toHaveValue("assigned-project");
   await expect(page.locator("#projectDescription")).toHaveText("Visible to assigned user");
