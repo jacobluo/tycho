@@ -469,7 +469,7 @@ scripts/verify
 
 Expected: PASS.
 
-- [ ] **Step 5: Push and create PR**
+- [x] **Step 5: Push and create PR**
 
 Run:
 
