@@ -34,6 +34,12 @@ export type TuimuxState = {
   activePaneId: string | null;
 };
 export type TerminalEntry = { windowState: TuimuxWindow; pane: TuimuxPane };
+export type TerminalSlotEntry = {
+  slotId: "slot-1" | "slot-2" | "slot-3" | "slot-4";
+  label: string;
+  windowState?: TuimuxWindow;
+  pane?: TuimuxPane;
+};
 export type TerminalRecord = {
   term: Terminal;
   host: HTMLElement;

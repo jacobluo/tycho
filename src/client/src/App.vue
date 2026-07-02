@@ -56,7 +56,12 @@
         :new-user-form="newUserForm"
         :selected-project="selectedProject"
         :terminal-entries="terminalEntries"
+        :slot-entries="slotEntries"
         :selected-window-id="selectedWindowId"
+        :layout-mode="layoutMode"
+        :layout-class="layoutClass"
+        :active-slot-id="activeSlotId"
+        :visible-slot-ids="visibleSlotIds"
         :connection-label="connectionLabel"
         :project-form-status="projectFormStatus"
         :project-form-tone="projectFormTone"
@@ -70,6 +75,10 @@
         @create-session="openSessionDialog"
         @focus-window="focusWindow"
         @close-window="closeWindow"
+        @set-layout-mode="setLayoutMode"
+        @set-active-slot="setActiveSlot"
+        @assign-slot-window="assignSlotWindow"
+        @clear-slot="clearSlot"
         @focus-pane="focusPane"
         @card-pointer-down="handleCardPointerDown"
         @set-terminal-host="setTerminalHost"
@@ -123,6 +132,17 @@ import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
 import { resolveSelectedWindowId } from "../../shared/session-selection";
+import {
+  allSessionSlotIds,
+  assignWindowToSlot,
+  clearWindowFromSlots,
+  createEmptySlotAssignments,
+  pruneSlotAssignments,
+  resolveVisibleSlotIds,
+  type SessionLayoutMode,
+  type SessionSlotId,
+  type SlotAssignments
+} from "../../shared/session-slots";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -130,6 +150,7 @@ import type {
   ServerMessage,
   TerminalEntry,
   TerminalRecord,
+  TerminalSlotEntry,
   TuimuxPane,
   TuimuxState,
   TuimuxWindow,
@@ -157,6 +178,11 @@ const passwordForm = reactive({ currentPassword: "", newPassword: "" });
 const sessionForm = reactive({ name: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
+const layoutMode = ref<SessionLayoutMode>(readStoredLayoutMode());
+const activeSlotId = ref<SessionSlotId>(readStoredActiveSlotId());
+const viewportWidth = ref(window.innerWidth);
+const slotAssignments = reactive<SlotAssignments>(readStoredSlotAssignments());
+const knownWindowIds = ref<Set<string>>(new Set());
 const passwordDialogOpen = ref(false);
 const sessionDialogOpen = ref(false);
 const pendingSessionAgentId = ref<string | null>(null);
@@ -193,6 +219,7 @@ const routeTitle = computed(() => {
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
 const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
+const visibleSlotIds = computed(() => resolveVisibleSlotIds(layoutMode.value, viewportWidth.value));
 const selectedWindowId = computed(() =>
   resolveSelectedWindowId(state.windows, {
     localActivePaneId: activePaneId.value,
@@ -206,6 +233,27 @@ const terminalEntries = computed<TerminalEntry[]>(() =>
     return pane ? [{ windowState, pane }] : [];
   })
 );
+const slotEntries = computed<TerminalSlotEntry[]>(() =>
+  visibleSlotIds.value.map((slotId, index) => {
+    const windowState = state.windows.find((candidate) => candidate.id === slotAssignments[slotId]);
+    const pane = windowState ? paneForWindow(windowState) : undefined;
+    return {
+      slotId,
+      label: `Slot ${index + 1}`,
+      windowState,
+      pane
+    };
+  })
+);
+const layoutClass = computed<SessionLayoutMode>(() => {
+  if (visibleSlotIds.value.length === 1) {
+    return "single";
+  }
+  if (visibleSlotIds.value.length === 2) {
+    return layoutMode.value === "two-horizontal" ? "two-horizontal" : "two-vertical";
+  }
+  return "quad";
+});
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -220,6 +268,54 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
     throw new Error(typeof payload.error === "string" ? payload.error : "Request failed");
   }
   return payload as T;
+}
+
+function isLayoutMode(value: string | null): value is SessionLayoutMode {
+  return value === "auto" || value === "single" || value === "two-vertical" || value === "two-horizontal" || value === "quad";
+}
+
+function isSlotId(value: string | null): value is SessionSlotId {
+  return allSessionSlotIds.includes(value as SessionSlotId);
+}
+
+function readStoredLayoutMode(): SessionLayoutMode {
+  const stored = localStorage.getItem("tycho-layout-mode");
+  return isLayoutMode(stored) ? stored : "auto";
+}
+
+function readStoredActiveSlotId(): SessionSlotId {
+  const stored = localStorage.getItem("tycho-active-slot-id");
+  return isSlotId(stored) ? stored : "slot-1";
+}
+
+function readStoredSlotAssignments(): SlotAssignments {
+  const assignments = createEmptySlotAssignments();
+  const stored = localStorage.getItem("tycho-slot-assignments");
+  if (!stored) {
+    return assignments;
+  }
+  try {
+    const parsed = JSON.parse(stored) as Partial<Record<SessionSlotId, unknown>>;
+    for (const slotId of allSessionSlotIds) {
+      const value = parsed[slotId];
+      assignments[slotId] = typeof value === "string" ? value : null;
+    }
+  } catch {
+    return assignments;
+  }
+  return assignments;
+}
+
+function persistSlotState(): void {
+  localStorage.setItem("tycho-layout-mode", layoutMode.value);
+  localStorage.setItem("tycho-active-slot-id", activeSlotId.value);
+  localStorage.setItem("tycho-slot-assignments", JSON.stringify(slotAssignments));
+}
+
+function replaceSlotAssignments(nextAssignments: SlotAssignments): void {
+  for (const slotId of allSessionSlotIds) {
+    slotAssignments[slotId] = nextAssignments[slotId];
+  }
 }
 
 async function initAuth(): Promise<void> {
@@ -336,6 +432,11 @@ function disconnect(): void {
   }
 }
 
+function handleViewportResize(): void {
+  viewportWidth.value = window.innerWidth;
+  syncSlotAssignments();
+}
+
 function send(payload: Record<string, unknown>): void {
   if (socket.value?.readyState === WebSocket.OPEN) {
     socket.value.send(JSON.stringify(payload));
@@ -352,6 +453,7 @@ function applyConfig(nextConfig: PublicRuntimeConfig, preferredProjectId = selec
 }
 
 function applyState(nextState: TuimuxState): void {
+  const previousWindowIds = knownWindowIds.value;
   state.connected = nextState.connected;
   state.serverVersion = nextState.serverVersion;
   state.windows = mergeWindowsPreservingOrder(state.windows, nextState.windows);
@@ -361,6 +463,8 @@ function applyState(nextState: TuimuxState): void {
   if (activePaneId.value && !nextState.panes.some((pane) => pane.paneId === activePaneId.value)) {
     activePaneId.value = nextState.activePaneId;
   }
+  syncSlotAssignments(previousWindowIds);
+  knownWindowIds.value = new Set(state.windows.map((windowState) => windowState.id));
 }
 
 function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
@@ -386,6 +490,39 @@ function getProjectId(preferredProjectId?: string): string {
     return config.defaultProjectId;
   }
   return config.projects[0]?.id || "";
+}
+
+function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
+  const liveWindowIds = state.windows.map((windowState) => windowState.id);
+  const liveWindowIdSet = new Set(liveWindowIds);
+  let nextAssignments = pruneSlotAssignments(slotAssignments, liveWindowIds);
+  const visibleIds = visibleSlotIds.value;
+  if (!visibleIds.includes(activeSlotId.value)) {
+    activeSlotId.value = visibleIds[0] ?? "slot-1";
+  }
+
+  const assignedWindowIds = new Set(Object.values(nextAssignments).filter((windowId): windowId is string => Boolean(windowId)));
+  for (const windowState of state.windows) {
+    if (assignedWindowIds.has(windowState.id)) {
+      continue;
+    }
+    const emptySlotId = visibleIds.find((slotId) => !nextAssignments[slotId]);
+    if (!emptySlotId) {
+      break;
+    }
+    nextAssignments = assignWindowToSlot(nextAssignments, emptySlotId, windowState.id);
+    assignedWindowIds.add(windowState.id);
+  }
+
+  const newWindow = state.windows.find((windowState) => !previousWindowIds.has(windowState.id));
+  const newWindowAssigned = newWindow ? Object.values(nextAssignments).includes(newWindow.id) : false;
+  if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id) && !newWindowAssigned) {
+    nextAssignments = assignWindowToSlot(nextAssignments, activeSlotId.value, newWindow.id);
+    activePaneId.value = newWindow.activePaneId;
+  }
+
+  replaceSlotAssignments(nextAssignments);
+  persistSlotState();
 }
 
 function persistSelectedProject(): void {
@@ -623,7 +760,33 @@ function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
   return state.panes.find((pane) => pane.paneId === windowState.activePaneId);
 }
 
+function setLayoutMode(mode: SessionLayoutMode): void {
+  layoutMode.value = mode;
+  syncSlotAssignments();
+}
+
+function setActiveSlot(slotId: SessionSlotId): void {
+  activeSlotId.value = slotId;
+  persistSlotState();
+}
+
+function assignSlotWindow(slotId: SessionSlotId, windowId: string | null): void {
+  setActiveSlot(slotId);
+  replaceSlotAssignments(assignWindowToSlot(slotAssignments, slotId, windowId));
+  persistSlotState();
+  if (windowId) {
+    focusWindow(windowId);
+  }
+}
+
+function clearSlot(slotId: SessionSlotId): void {
+  replaceSlotAssignments(assignWindowToSlot(slotAssignments, slotId, null));
+  persistSlotState();
+}
+
 function focusWindow(windowId: string): void {
+  replaceSlotAssignments(assignWindowToSlot(slotAssignments, activeSlotId.value, windowId));
+  persistSlotState();
   const windowState = state.windows.find((candidate) => candidate.id === windowId);
   const pane = windowState ? paneForWindow(windowState) : undefined;
   if (pane) {
@@ -650,25 +813,36 @@ function confirmCloseWindow(): void {
   if (!windowId) {
     return;
   }
+  replaceSlotAssignments(clearWindowFromSlots(slotAssignments, windowId));
+  persistSlotState();
   send({ type: "close_window", windowId });
   closeSessionCloseDialog();
 }
 
-function focusPane(entry: TerminalEntry): void {
+function focusPane(entry: TerminalEntry | TerminalSlotEntry): void {
+  if ("slotId" in entry && entry.pane && entry.windowState) {
+    setActiveSlot(entry.slotId);
+  }
+  if (!entry.pane || !entry.windowState) {
+    return;
+  }
   activePaneId.value = entry.pane.paneId;
   send({ type: "focus_window", windowId: entry.windowState.id });
   focusTerminal(entry.pane.paneId);
 }
 
-function handleCardPointerDown(event: PointerEvent, entry: TerminalEntry): void {
+function handleCardPointerDown(event: PointerEvent, entry: TerminalEntry | TerminalSlotEntry): void {
   if ((event.target as HTMLElement).closest(".terminal-actions")) {
     return;
   }
   focusPane(entry);
 }
 
-function setTerminalHost(entry: TerminalEntry, element: Element | ComponentPublicInstance | null): void {
+function setTerminalHost(entry: TerminalEntry | TerminalSlotEntry, element: Element | ComponentPublicInstance | null): void {
   if (!(element instanceof HTMLElement)) {
+    return;
+  }
+  if (!entry.pane || !entry.windowState) {
     return;
   }
   const existing = terminals.get(entry.pane.paneId);
@@ -678,7 +852,7 @@ function setTerminalHost(entry: TerminalEntry, element: Element | ComponentPubli
   if (existing) {
     disposeTerminal(entry.pane.paneId);
   }
-  mountTerminal(entry, element);
+  mountTerminal({ windowState: entry.windowState, pane: entry.pane }, element);
 }
 
 function focusTerminal(paneId: string): void {
@@ -758,6 +932,39 @@ watch(
 );
 
 watch(
+  () => slotEntries.value.map((entry) => entry.pane?.paneId).filter((paneId): paneId is string => Boolean(paneId)),
+  (visiblePaneIds) => {
+    const visiblePaneIdSet = new Set(visiblePaneIds);
+    for (const paneId of terminals.keys()) {
+      if (!visiblePaneIdSet.has(paneId)) {
+        disposeTerminal(paneId);
+      }
+    }
+    void nextTick(() => {
+      for (const paneId of visiblePaneIds) {
+        resizeTerminal(paneId);
+      }
+    });
+  }
+);
+
+watch(layoutMode, () => {
+  syncSlotAssignments();
+});
+
+watch(activeSlotId, () => {
+  persistSlotState();
+});
+
+watch(
+  () => ({ ...slotAssignments }),
+  () => {
+    persistSlotState();
+  },
+  { deep: true }
+);
+
+watch(
   [() => route.path, currentUser, isAdmin],
   ([path, user, admin]) => {
     if (user && path.startsWith("/admin") && !admin) {
@@ -768,8 +975,13 @@ watch(
 );
 
 onMounted(() => {
+  window.addEventListener("resize", handleViewportResize);
+  syncSlotAssignments();
   void initAuth();
 });
 
-onUnmounted(disconnect);
+onUnmounted(() => {
+  window.removeEventListener("resize", handleViewportResize);
+  disconnect();
+});
 </script>

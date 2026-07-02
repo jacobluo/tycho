@@ -1,9 +1,9 @@
 <template>
   <div v-if="open" class="modal-backdrop">
-    <form class="modal-panel session-dialog" @submit.prevent="emit('submit')">
+    <form class="modal-panel session-dialog" role="dialog" aria-modal="true" aria-labelledby="nameSessionTitle" @submit.prevent="emit('submit')">
       <div class="modal-header">
         <div>
-          <h2>Name Session</h2>
+          <h2 id="nameSessionTitle">Name Session</h2>
           <p>{{ agentName }}</p>
         </div>
         <button class="link-button" type="button" @click="emit('close')">Cancel</button>
