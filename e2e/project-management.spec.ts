@@ -34,16 +34,18 @@ async function logout(page: import("@playwright/test").Page): Promise<void> {
 async function openProjectManagement(page: import("@playwright/test").Page): Promise<void> {
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Admin Management" }).click();
-  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
-  await page.getByRole("tab", { name: "Project Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await expect(page.getByRole("navigation", { name: "Admin Management" })).toBeVisible();
+  await expect(page.locator(".workspace-sidebar")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Project Management" })).toBeVisible();
 }
 
 async function openUserManagement(page: import("@playwright/test").Page): Promise<void> {
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Admin Management" }).click();
-  await expect(page.getByRole("heading", { name: "Admin Management" })).toBeVisible();
-  await page.getByRole("tab", { name: "User Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await page.getByRole("link", { name: "User Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/users$/);
   await expect(page.getByRole("heading", { name: "User Management" })).toBeVisible();
 }
 
@@ -167,6 +169,8 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { name: "Project Management" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "User Management" })).toHaveCount(0);
+  await page.goto("/admin/projects");
+  await expect(page).toHaveURL(/\/$/);
 
   const status = await page.evaluate(async () => {
     const response = await fetch("/api/projects", {

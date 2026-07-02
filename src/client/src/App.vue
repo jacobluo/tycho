@@ -16,351 +16,108 @@
     </form>
   </main>
 
-  <main v-else class="app-shell">
-    <aside class="sidebar">
-      <div>
-        <div class="brand-row">
-          <h1>Tycho</h1>
-        </div>
-        <p id="connectionStatus" class="status" :class="{ connected: state.connected }">
-          {{ state.connected ? "Connected" : connectionLabel }}
-        </p>
+  <main v-else class="app-shell routed-shell">
+    <header class="app-topbar">
+      <div class="brand-row">
+        <h1>Tycho</h1>
+        <span>{{ routeTitle }}</span>
       </div>
-
-      <div class="projects">
-        <h2>Project</h2>
-        <label class="project-select-wrap">
+      <div class="topbar-controls">
+        <label v-if="isWorkspaceRoute" class="topbar-project-select">
+          <span>Project</span>
           <select id="projectSelect" v-model="selectedProjectId" class="project-select" @change="persistSelectedProject">
             <option v-for="project in config.projects" :key="project.id" :value="project.id">
               {{ project.name }}
             </option>
           </select>
         </label>
-        <p id="projectPath" class="project-path">{{ selectedProject?.path || "No projects assigned" }}</p>
-        <p id="projectDescription" class="project-description">{{ selectedProject?.description || "" }}</p>
-      </div>
-
-      <div class="launcher">
-        <h2>Agents</h2>
-        <div id="agentButtons" class="agent-buttons">
-          <button
-            v-for="agent in config.agents"
-            :key="agent.id"
-            class="agent-button"
-            type="button"
-            :disabled="!selectedProjectId"
-            @click="createSession(agent.id)"
-          >
-            <span>{{ agent.name }}</span>
-            <span>{{ agent.command }}</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="sessions">
-        <h2>Sessions</h2>
-        <div id="sessionList" class="session-list">
-          <div v-if="state.windows.length === 0" class="session-item">
-            <span>No sessions</span>
-          </div>
-          <div
-            v-for="windowState in state.windows"
-            v-else
-            :key="windowState.id"
-            class="session-item"
-            @click="focusWindow(windowState.id)"
-          >
-            <strong>{{ windowState.title }}</strong>
-            <span>{{ paneForWindow(windowState)?.status || "starting" }}</span>
-            <small>{{ paneForWindow(windowState)?.entry.cwd || "" }}</small>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <section v-if="activeView === 'workspace'" class="workspace">
-      <header class="workspace-header">
-        <div>
-          <h2>Server-side TUIs</h2>
-          <p>CodeBuddy / Codex / Claude run inside tuimux on the server.</p>
-        </div>
         <div class="header-actions">
-          <button id="newCodeBuddy" type="button" :disabled="!selectedProjectId" @click="createSession('codebuddy')">New CodeBuddy</button>
-          <div class="account-menu-wrap">
-            <button class="account-menu-trigger" type="button" @click="toggleAccountMenu">
-              {{ currentUser.username }} / {{ currentUser.role }}
-            </button>
-            <div v-if="accountMenuOpen" class="account-menu" role="menu">
-              <button role="menuitem" type="button" @click="openPasswordDialog">Change Password</button>
-              <button v-if="isAdmin" role="menuitem" type="button" @click="openManagementFromMenu">Admin Management</button>
-              <button role="menuitem" type="button" @click="logout">Log Out</button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div id="terminalGrid" class="terminal-grid" :class="{ empty: terminalEntries.length === 0 }">
-        <div v-if="terminalEntries.length === 0" class="empty-state">Start an agent to open a live TUI panel.</div>
-
-        <article
-          v-for="entry in terminalEntries"
-          v-else
-          :key="entry.windowState.id"
-          class="terminal-card"
-          :class="{ active: state.activeWindowId === entry.windowState.id || activePaneId === entry.pane.paneId }"
-          :data-window-id="entry.windowState.id"
-          :data-pane-id="entry.pane.paneId"
-          @pointerdown="handleCardPointerDown($event, entry)"
-        >
-          <div class="terminal-titlebar">
-            <div class="terminal-title">
-              <strong>{{ entry.windowState.title }}</strong>
-              <span>{{ entry.pane.status }} / {{ entry.pane.entry.cwd }}</span>
-            </div>
-            <div class="terminal-actions">
-              <button type="button" @click="focusPane(entry)">Focus</button>
-              <button class="danger" type="button" @click="closeWindow(entry.windowState.id)">Close</button>
-            </div>
-          </div>
-          <div
-            class="terminal-host"
-            tabindex="0"
-            :ref="(el) => setTerminalHost(entry, el)"
-            @pointerdown="focusPane(entry)"
-            @focus="focusPane(entry)"
-          ></div>
-        </article>
-      </div>
-    </section>
-
-    <section v-else class="workspace management-shell">
-      <header class="workspace-header management-header">
-        <div>
-          <h2>Admin Management</h2>
-          <p>Manage project access and users without crowding the runtime workspace.</p>
-        </div>
-        <div class="header-actions">
-          <button type="button" @click="showWorkspace">Back to Workspace</button>
-          <div class="account-menu-wrap">
-            <button class="account-menu-trigger" type="button" @click="toggleAccountMenu">
-              {{ currentUser.username }} / {{ currentUser.role }}
-            </button>
-            <div v-if="accountMenuOpen" class="account-menu" role="menu">
-              <button role="menuitem" type="button" @click="openPasswordDialog">Change Password</button>
-              <button v-if="isAdmin" role="menuitem" type="button" @click="openManagementFromMenu">Admin Management</button>
-              <button role="menuitem" type="button" @click="logout">Log Out</button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div class="management-body">
-        <div class="management-tabs" role="tablist" aria-label="Admin sections">
-          <button
-            role="tab"
-            type="button"
-            :aria-selected="adminTab === 'projects'"
-            :class="{ active: adminTab === 'projects' }"
-            @click="adminTab = 'projects'"
-          >
-            Project Management
-          </button>
-          <button
-            role="tab"
-            type="button"
-            :aria-selected="adminTab === 'users'"
-            :class="{ active: adminTab === 'users' }"
-            @click="adminTab = 'users'"
-          >
-            User Management
-          </button>
-        </div>
-
-        <div v-if="adminTab === 'projects'" class="management-panel" role="tabpanel">
-          <div class="section-heading">
-            <h2>Project Management</h2>
-            <p>Add local projects to Tycho and remove managed entries when they are no longer needed.</p>
-          </div>
-          <div class="management-grid">
-            <form id="projectForm" class="project-form admin-card" @submit.prevent="submitProjectForm">
-              <h3>Add Project</h3>
-              <label>
-                <span>Name</span>
-                <input v-model="projectForm.name" name="name" type="text" autocomplete="off" required />
-              </label>
-              <label>
-                <span>Local Path</span>
-                <input v-model="projectForm.path" name="path" type="text" autocomplete="off" required />
-              </label>
-              <label>
-                <span>Description</span>
-                <textarea v-model="projectForm.description" name="description" rows="4"></textarea>
-              </label>
-              <button type="submit" :disabled="projectFormBusy">Add Project</button>
-              <p id="projectFormStatus" class="form-status" :class="projectFormTone">{{ projectFormStatus }}</p>
-            </form>
-
-            <div class="admin-card project-detail-card">
-              <h3>Selected Project</h3>
-              <dl>
-                <div>
-                  <dt>Name</dt>
-                  <dd>{{ selectedProject?.name || "No project" }}</dd>
-                </div>
-                <div>
-                  <dt>Path</dt>
-                  <dd>{{ selectedProject?.path || "No projects assigned" }}</dd>
-                </div>
-                <div>
-                  <dt>Description</dt>
-                  <dd>{{ selectedProject?.description || "No description" }}</dd>
-                </div>
-              </dl>
-              <button
-                id="deleteProject"
-                class="danger"
-                type="button"
-                :disabled="!selectedProject?.managed || projectDeleteBusy"
-                @click="deleteSelectedProject"
-              >
-                Delete Project
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div v-else class="management-panel" role="tabpanel">
-          <div class="section-heading">
-            <h2>User Management</h2>
-            <p>Create users, change roles and passwords, and assign project access.</p>
-          </div>
-          <div class="management-grid users-management-grid">
-            <form class="project-form admin-card" @submit.prevent="createNewUser">
-              <h3>Create User</h3>
-              <label>
-                <span>New Username</span>
-                <input v-model="newUserForm.username" autocomplete="off" required />
-              </label>
-              <label>
-                <span>New Password</span>
-                <input v-model="newUserForm.password" type="password" autocomplete="new-password" required />
-              </label>
-              <label>
-                <span>New Role</span>
-                <select v-model="newUserForm.role" class="project-select">
-                  <option value="user">user</option>
-                  <option value="admin">admin</option>
-                </select>
-              </label>
-              <button type="submit" :disabled="userFormBusy">Create User</button>
-              <p id="userFormStatus" class="form-status" :class="userFormTone">{{ userFormStatus }}</p>
-            </form>
-
-            <div class="user-list">
-              <article v-for="user in users" :key="user.id" class="user-card" :data-user-row="user.username">
-                <div class="user-card-header">
-                  <strong>{{ user.username }}</strong>
-                  <span>{{ user.status }}</span>
-                </div>
-                <label>
-                  <span>Role</span>
-                  <select v-model="userEdits[user.id].role" class="project-select">
-                    <option value="user">user</option>
-                    <option value="admin">admin</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Password</span>
-                  <input v-model="userEdits[user.id].password" type="password" placeholder="New password" />
-                </label>
-                <div class="user-actions">
-                  <button type="button" @click="saveUser(user)">Save User</button>
-                  <button type="button" @click="toggleUserStatus(user)">{{ user.status === "active" ? "Disable" : "Enable" }}</button>
-                  <button class="danger" type="button" @click="deleteUser(user)">Delete</button>
-                </div>
-                <fieldset class="assignment-list">
-                  <legend>Projects</legend>
-                  <label v-for="project in config.projects" :key="project.id" class="assignment-item">
-                    <input
-                      v-model="userEdits[user.id].projectIds"
-                      type="checkbox"
-                      :value="project.id"
-                    />
-                    <span>{{ project.name }}</span>
-                  </label>
-                </fieldset>
-                <button type="button" @click="saveUserProjects(user)">Save Projects</button>
-                <p class="user-status-message form-status" :class="userEdits[user.id].tone">{{ userEdits[user.id].message }}</p>
-              </article>
-            </div>
-          </div>
+          <RouterLink v-if="!isWorkspaceRoute" class="button-link" to="/">Workspace</RouterLink>
+          <AccountMenu
+            :current-user="currentUser"
+            :is-admin="isAdmin"
+            @change-password="openPasswordDialog"
+            @admin="openManagementFromMenu"
+            @logout="logout"
+          />
         </div>
       </div>
-    </section>
+    </header>
 
-    <div v-if="passwordDialogOpen" class="modal-backdrop">
-      <form class="modal-panel" @submit.prevent="submitPasswordChange">
-        <div class="modal-header">
-          <h2>Change Password</h2>
-          <button class="link-button" type="button" @click="closePasswordDialog">Close</button>
-        </div>
-        <label>
-          <span>Current Password</span>
-          <input v-model="passwordForm.currentPassword" type="password" autocomplete="current-password" required />
-        </label>
-        <label>
-          <span>New Password</span>
-          <input v-model="passwordForm.newPassword" type="password" autocomplete="new-password" required />
-        </label>
-        <button type="submit" :disabled="passwordFormBusy">Save Password</button>
-        <p id="passwordFormStatus" class="form-status" :class="passwordFormTone">{{ passwordFormStatus }}</p>
-      </form>
-    </div>
+    <RouterView v-slot="{ Component }">
+      <component
+        :is="Component"
+        v-model:selected-project-id="selectedProjectId"
+        :config="config"
+        :state="state"
+        :users="users"
+        :user-edits="userEdits"
+        :project-form="projectForm"
+        :new-user-form="newUserForm"
+        :selected-project="selectedProject"
+        :terminal-entries="terminalEntries"
+        :active-pane-id="activePaneId"
+        :connection-label="connectionLabel"
+        :project-form-status="projectFormStatus"
+        :project-form-tone="projectFormTone"
+        :user-form-status="userFormStatus"
+        :user-form-tone="userFormTone"
+        :project-form-busy="projectFormBusy"
+        :project-delete-busy="projectDeleteBusy"
+        :user-form-busy="userFormBusy"
+        :pane-for-window="paneForWindow"
+        @persist-selected-project="persistSelectedProject"
+        @create-session="createSession"
+        @focus-window="focusWindow"
+        @close-window="closeWindow"
+        @focus-pane="focusPane"
+        @card-pointer-down="handleCardPointerDown"
+        @set-terminal-host="setTerminalHost"
+        @submit-project-form="submitProjectForm"
+        @delete-selected-project="deleteSelectedProject"
+        @create-new-user="createNewUser"
+        @save-user="saveUser"
+        @toggle-user-status="toggleUserStatus"
+        @delete-user="deleteUser"
+        @save-user-projects="saveUserProjects"
+      />
+    </RouterView>
+
+    <ChangePasswordDialog
+      :open="passwordDialogOpen"
+      :busy="passwordFormBusy"
+      :status="passwordFormStatus"
+      :tone="passwordFormTone"
+      :form="passwordForm"
+      @close="closePasswordDialog"
+      @submit="submitPasswordChange"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import type { ComponentPublicInstance } from "vue";
+import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
+import AccountMenu from "./components/AccountMenu.vue";
+import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
+import type {
+  PublicRuntimeConfig,
+  ProjectConfig,
+  PublicUser,
+  ServerMessage,
+  TerminalEntry,
+  TerminalRecord,
+  TuimuxPane,
+  TuimuxState,
+  TuimuxWindow,
+  UserEditState,
+  UserRole
+} from "./client-types";
 
-type AgentConfig = { id: string; name: string; command: string; args?: string; cwd: string };
-type ProjectConfig = { id: string; name: string; path: string; description?: string; managed?: boolean };
-type UserRole = "admin" | "user";
-type UserStatus = "active" | "disabled" | "deleted";
-type PublicUser = {
-  id: string;
-  username: string;
-  role: UserRole;
-  status: UserStatus;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt?: string;
-  projectIds: string[];
-};
-type PublicRuntimeConfig = { agents: AgentConfig[]; projects: ProjectConfig[]; defaultProjectId: string; webPort: number };
-type AgentEntry = AgentConfig & { autostart: boolean; restart_on_exit: boolean; env?: Record<string, string> };
-type TuimuxPane = { paneId: string; entry: AgentEntry; status: "running" | "stopped" | "error"; buffer: string; runId?: number };
-type TuimuxWindow = { id: string; title: string; layout: unknown; activePaneId: string };
-type TuimuxState = {
-  connected: boolean;
-  serverVersion?: string;
-  windows: TuimuxWindow[];
-  panes: TuimuxPane[];
-  activeWindowId: string | null;
-  activePaneId: string | null;
-};
-type TerminalEntry = { windowState: TuimuxWindow; pane: TuimuxPane };
-type TerminalRecord = {
-  term: Terminal;
-  host: HTMLElement;
-  resizeObserver: ResizeObserver;
-  inputDisposable: { dispose: () => void };
-};
-type ServerMessage = { type?: unknown; config?: unknown; state?: unknown; paneId?: unknown; data?: unknown };
-type AppView = "workspace" | "manage";
-type AdminTab = "projects" | "users";
-
+const route = useRoute();
+const router = useRouter();
 const config = reactive<PublicRuntimeConfig>({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
 const state = reactive<TuimuxState>({
   connected: false,
@@ -371,16 +128,13 @@ const state = reactive<TuimuxState>({
 });
 const currentUser = ref<PublicUser | null>(null);
 const users = ref<PublicUser[]>([]);
-const userEdits = reactive<Record<string, { role: UserRole; password: string; projectIds: string[]; message: string; tone: string }>>({});
+const userEdits = reactive<Record<string, UserEditState>>({});
 const loginForm = reactive({ username: "admin", password: "admin" });
 const projectForm = reactive({ name: "", path: "", description: "" });
 const newUserForm = reactive<{ username: string; password: string; role: UserRole }>({ username: "", password: "", role: "user" });
 const passwordForm = reactive({ currentPassword: "", newPassword: "" });
 const selectedProjectId = ref("");
 const activePaneId = ref<string | null>(null);
-const activeView = ref<AppView>("workspace");
-const adminTab = ref<AdminTab>("projects");
-const accountMenuOpen = ref(false);
 const passwordDialogOpen = ref(false);
 const loginError = ref("");
 const projectFormStatus = ref("");
@@ -400,6 +154,16 @@ const connectionLabel = ref("Connecting");
 const terminals = new Map<string, TerminalRecord>();
 
 const isAdmin = computed(() => currentUser.value?.role === "admin");
+const isWorkspaceRoute = computed(() => route.path === "/");
+const routeTitle = computed(() => {
+  if (route.path.startsWith("/admin/users")) {
+    return "User Management";
+  }
+  if (route.path.startsWith("/admin")) {
+    return "Project Management";
+  }
+  return "Workspace";
+});
 const selectedProject = computed(() => config.projects.find((project) => project.id === selectedProjectId.value) || config.projects[0]);
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
@@ -461,12 +225,10 @@ async function logout(): Promise<void> {
   disconnect();
   currentUser.value = null;
   users.value = [];
-  activeView.value = "workspace";
-  adminTab.value = "projects";
-  accountMenuOpen.value = false;
   passwordDialogOpen.value = false;
   applyConfig({ agents: [], projects: [], defaultProjectId: "", webPort: 0 });
   applyState({ connected: false, windows: [], panes: [], activeWindowId: null, activePaneId: null });
+  await router.push("/");
 }
 
 async function fetchConfig(): Promise<void> {
@@ -581,29 +343,14 @@ function persistSelectedProject(): void {
   }
 }
 
-function showWorkspace(): void {
-  activeView.value = "workspace";
-}
-
-function showManagement(): void {
+function openManagementFromMenu(): void {
   if (!isAdmin.value) {
     return;
   }
-  activeView.value = "manage";
-  adminTab.value = "projects";
-}
-
-function toggleAccountMenu(): void {
-  accountMenuOpen.value = !accountMenuOpen.value;
-}
-
-function openManagementFromMenu(): void {
-  accountMenuOpen.value = false;
-  showManagement();
+  void router.push("/admin/projects");
 }
 
 function openPasswordDialog(): void {
-  accountMenuOpen.value = false;
   passwordForm.currentPassword = "";
   passwordForm.newPassword = "";
   setPasswordFormStatus("");
@@ -865,6 +612,16 @@ watch(
       }
     });
   }
+);
+
+watch(
+  [() => route.path, currentUser, isAdmin],
+  ([path, user, admin]) => {
+    if (user && path.startsWith("/admin") && !admin) {
+      void router.replace("/");
+    }
+  },
+  { immediate: true }
 );
 
 onMounted(() => {

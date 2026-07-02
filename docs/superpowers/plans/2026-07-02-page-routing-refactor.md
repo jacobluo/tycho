@@ -32,7 +32,7 @@
 - Modify: `pnpm-lock.yaml`
 - Modify: `e2e/project-management.spec.ts`
 
-- [ ] **Step 1: Add Vue Router dependency**
+- [x] **Step 1: Add Vue Router dependency**
 
 Run:
 
@@ -42,7 +42,7 @@ pnpm add vue-router
 
 Expected: `package.json` and `pnpm-lock.yaml` include `vue-router`.
 
-- [ ] **Step 2: Write failing E2E route/layout assertions**
+- [x] **Step 2: Write failing E2E route/layout assertions**
 
 Update `e2e/project-management.spec.ts` so admin management expects:
 
@@ -67,7 +67,7 @@ await expect(page).toHaveURL(/\/$/);
 await expect(page.getByRole("menuitem", { name: "Admin Management" })).toHaveCount(0);
 ```
 
-- [ ] **Step 3: Run focused E2E and verify RED**
+- [x] **Step 3: Run focused E2E and verify RED**
 
 Run:
 
@@ -86,7 +86,7 @@ Expected: FAIL because routes and admin layout do not exist yet.
 - Modify: `src/client/src/main.ts`
 - Modify: `src/client/src/App.vue`
 
-- [ ] **Step 1: Create router**
+- [x] **Step 1: Create router**
 
 Create `src/client/src/router.ts` with route names:
 
@@ -114,7 +114,7 @@ export const router = createRouter({
 });
 ```
 
-- [ ] **Step 2: Install router in main**
+- [x] **Step 2: Install router in main**
 
 Modify `src/client/src/main.ts`:
 
@@ -130,15 +130,15 @@ window.__TYCHO_CLIENT__ = "vue-vite";
 createApp(App).use(router).mount("#app");
 ```
 
-- [ ] **Step 3: Extract account menu**
+- [x] **Step 3: Extract account menu**
 
 Create `AccountMenu.vue` with props `currentUser` and emits `change-password`, `admin`, `logout`.
 
-- [ ] **Step 4: Extract password dialog**
+- [x] **Step 4: Extract password dialog**
 
 Create `ChangePasswordDialog.vue` with props for open/busy/status/tone and emits `close` and `submit`.
 
-- [ ] **Step 5: Refactor App shell**
+- [x] **Step 5: Refactor App shell**
 
 Keep auth and data functions in `App.vue`, render:
 
@@ -159,7 +159,7 @@ Add a watcher that redirects non-admin users away from `/admin`.
 - Create: `src/client/src/views/UserManagementView.vue`
 - Modify: `src/client/src/styles.css`
 
-- [ ] **Step 1: Create WorkspaceView**
+- [x] **Step 1: Create WorkspaceView**
 
 Move workspace-only UI into `WorkspaceView.vue`:
 
@@ -172,7 +172,7 @@ Move workspace-only UI into `WorkspaceView.vue`:
 
 Expose event emits for create session, focus/close/focus pane, terminal host registration, and project persistence.
 
-- [ ] **Step 2: Create AdminLayout**
+- [x] **Step 2: Create AdminLayout**
 
 Create admin shell:
 
@@ -186,7 +186,7 @@ Create admin shell:
 </section>
 ```
 
-- [ ] **Step 3: Create ProjectManagementView**
+- [x] **Step 3: Create ProjectManagementView**
 
 Move project form/delete/status UI into route view. Keep IDs used by E2E:
 
@@ -196,7 +196,7 @@ Move project form/delete/status UI into route view. Keep IDs used by E2E:
 - `#projectPath`
 - `#projectDescription`
 
-- [ ] **Step 4: Create UserManagementView**
+- [x] **Step 4: Create UserManagementView**
 
 Move user creation/list/assignment UI into route view. Keep IDs and data attributes used by E2E:
 
@@ -204,7 +204,7 @@ Move user creation/list/assignment UI into route view. Keep IDs and data attribu
 - `[data-user-row="..."]`
 - `.user-status-message`
 
-- [ ] **Step 5: Update styles**
+- [x] **Step 5: Update styles**
 
 Adjust CSS for:
 
@@ -223,7 +223,7 @@ Do not introduce a new visual palette.
 **Files:**
 - All changed files.
 
-- [ ] **Step 1: Run typecheck**
+- [x] **Step 1: Run typecheck**
 
 Run:
 
@@ -233,7 +233,7 @@ scripts/typecheck
 
 Expected: PASS.
 
-- [ ] **Step 2: Run E2E**
+- [x] **Step 2: Run E2E**
 
 Run:
 
@@ -243,7 +243,7 @@ scripts/e2e
 
 Expected: PASS.
 
-- [ ] **Step 3: Run full verify**
+- [x] **Step 3: Run full verify**
 
 Run:
 
@@ -253,11 +253,11 @@ scripts/verify
 
 Expected: PASS.
 
-- [ ] **Step 4: Update this plan**
+- [x] **Step 4: Update this plan**
 
 Mark completed checkboxes and record any implementation notes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 Run:
 
