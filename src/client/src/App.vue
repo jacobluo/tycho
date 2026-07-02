@@ -127,6 +127,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import type { ComponentPublicInstance } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
 import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
@@ -220,13 +221,17 @@ const selectedProject = computed(() => config.projects.find((project) => project
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
 const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
 const visibleSlotIds = computed(() => resolveVisibleSlotIds(layoutMode.value, viewportWidth.value));
-const selectedWindowId = computed(() =>
-  resolveSelectedWindowId(state.windows, {
+const selectedWindowId = computed(() => {
+  const activeSlotWindowId = slotAssignments[activeSlotId.value];
+  if (activeSlotWindowId && state.windows.some((windowState) => windowState.id === activeSlotWindowId)) {
+    return activeSlotWindowId;
+  }
+  return resolveSelectedWindowId(state.windows, {
     localActivePaneId: activePaneId.value,
     serverActivePaneId: state.activePaneId,
     serverActiveWindowId: state.activeWindowId
-  })
-);
+  });
+});
 const terminalEntries = computed<TerminalEntry[]>(() =>
   state.windows.flatMap((windowState) => {
     const pane = paneForWindow(windowState);
@@ -518,7 +523,22 @@ function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
   const newWindowAssigned = newWindow ? Object.values(nextAssignments).includes(newWindow.id) : false;
   if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id) && !newWindowAssigned) {
     nextAssignments = assignWindowToSlot(nextAssignments, activeSlotId.value, newWindow.id);
+  }
+  if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id)) {
+    const newWindowSlotId = visibleIds.find((slotId) => nextAssignments[slotId] === newWindow.id);
+    activeSlotId.value = newWindowSlotId ?? activeSlotId.value;
     activePaneId.value = newWindow.activePaneId;
+  }
+
+  if (!nextAssignments[activeSlotId.value]) {
+    const preferredWindowId = resolveSelectedWindowId(state.windows, {
+      localActivePaneId: activePaneId.value,
+      serverActivePaneId: state.activePaneId,
+      serverActiveWindowId: state.activeWindowId
+    });
+    const preferredSlotId = visibleIds.find((slotId) => nextAssignments[slotId] === preferredWindowId);
+    const occupiedSlotId = visibleIds.find((slotId) => Boolean(nextAssignments[slotId]));
+    activeSlotId.value = preferredSlotId ?? occupiedSlotId ?? activeSlotId.value;
   }
 
   replaceSlotAssignments(nextAssignments);
@@ -785,8 +805,13 @@ function clearSlot(slotId: SessionSlotId): void {
 }
 
 function focusWindow(windowId: string): void {
-  replaceSlotAssignments(assignWindowToSlot(slotAssignments, activeSlotId.value, windowId));
-  persistSlotState();
+  const existingSlotId = visibleSlotIds.value.find((slotId) => slotAssignments[slotId] === windowId);
+  if (existingSlotId) {
+    setActiveSlot(existingSlotId);
+  } else {
+    replaceSlotAssignments(assignWindowToSlot(slotAssignments, activeSlotId.value, windowId));
+    persistSlotState();
+  }
   const windowState = state.windows.find((candidate) => candidate.id === windowId);
   const pane = windowState ? paneForWindow(windowState) : undefined;
   if (pane) {
@@ -879,12 +904,14 @@ function mountTerminal(entry: TerminalEntry, host: HTMLElement): void {
       selectionBackground: "#2f5d7c"
     }
   });
+  const fitAddon = new FitAddon();
+  term.loadAddon(fitAddon);
   term.open(host);
   term.write(entry.pane.buffer || "");
   const inputDisposable = term.onData((data) => send({ type: "input", paneId: entry.pane.paneId, data }));
   const resizeObserver = new ResizeObserver(() => resizeTerminal(entry.pane.paneId));
   resizeObserver.observe(host);
-  terminals.set(entry.pane.paneId, { term, host, resizeObserver, inputDisposable });
+  terminals.set(entry.pane.paneId, { term, fitAddon, host, resizeObserver, inputDisposable });
   window.setTimeout(() => {
     resizeTerminal(entry.pane.paneId);
     focusPane(entry);
@@ -896,10 +923,16 @@ function resizeTerminal(paneId: string): void {
   if (!record) {
     return;
   }
-  const rect = record.host.getBoundingClientRect();
-  const cols = Math.max(20, Math.floor((rect.width - 16) / 7.8));
-  const rows = Math.max(6, Math.floor((rect.height - 16) / 15.4));
-  record.term.resize(cols, rows);
+  record.fitAddon.fit();
+  const cols = record.term.cols;
+  const rows = record.term.rows;
+  if (cols <= 0 || rows <= 0) {
+    return;
+  }
+  if (record.lastResize?.cols === cols && record.lastResize.rows === rows) {
+    return;
+  }
+  record.lastResize = { cols, rows };
   send({ type: "resize", paneId, cols, rows });
 }
 

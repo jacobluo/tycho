@@ -1,4 +1,5 @@
 import type { Terminal } from "@xterm/xterm";
+import type { FitAddon } from "@xterm/addon-fit";
 
 export type AgentConfig = { id: string; name: string; command: string; args?: string; cwd: string };
 export type ProjectConfig = { id: string; name: string; path: string; description?: string; managed?: boolean };
@@ -42,9 +43,11 @@ export type TerminalSlotEntry = {
 };
 export type TerminalRecord = {
   term: Terminal;
+  fitAddon: FitAddon;
   host: HTMLElement;
   resizeObserver: ResizeObserver;
   inputDisposable: { dispose: () => void };
+  lastResize?: { cols: number; rows: number };
 };
 export type ServerMessage = { type?: unknown; config?: unknown; state?: unknown; paneId?: unknown; data?: unknown };
 export type UserEditState = { role: UserRole; password: string; projectIds: string[]; message: string; tone: string };

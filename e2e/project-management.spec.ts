@@ -44,6 +44,7 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page.getByRole("button", { name: `${username} ${roleLabel(username)}` })).toBeVisible();
+  await closeAllSessions(page);
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
@@ -54,12 +55,33 @@ async function waitForWorkspaceConnection(page: import("@playwright/test").Page)
   await expect(page.locator("#connectionStatus")).toHaveText("Connected");
 }
 
+async function closeAllSessions(page: import("@playwright/test").Page): Promise<void> {
+  await waitForWorkspaceConnection(page);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const closeButtons = page.locator("#sessionList .session-close-button");
+    const sessionCount = await closeButtons.count();
+    if (sessionCount === 0) {
+      return;
+    }
+
+    await closeButtons.first().click();
+    const dialog = page.getByRole("dialog", { name: "Close Session" });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close Session" }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(closeButtons).toHaveCount(sessionCount - 1);
+  }
+  throw new Error("Could not clear existing sessions before the test");
+}
+
 async function startNamedSession(page: import("@playwright/test").Page, name: string): Promise<void> {
   await waitForWorkspaceConnection(page);
   await page.getByRole("button", { name: /CodeBuddy/ }).click();
   const dialog = page.getByRole("dialog", { name: "Name Session" });
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel("Session Name").fill(name);
+  const nameInput = dialog.getByLabel("Session Name");
+  await nameInput.fill(name);
+  await expect(nameInput).toHaveValue(name);
   await expect(dialog.getByRole("button", { name: "Start Session" })).toBeEnabled();
   await dialog.getByRole("button", { name: "Start Session" }).click();
   await expect(dialog).toHaveCount(0);
@@ -416,6 +438,50 @@ test("session slot layout: hides display without closing and still confirms clos
   await closeSlot.getByRole("button", { name: "Close Session" }).click();
   await page.getByRole("dialog", { name: "Close Session" }).getByRole("button", { name: "Close Session" }).click();
   await expect(page.locator("#sessionList .session-item", { hasText: "Close Me" })).toHaveCount(0);
+});
+
+test("terminal resize fit: emits valid resize dimensions across layout changes", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__TYCHO_WS_MESSAGES__ = [];
+    const originalSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function patchedSend(data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+      window.__TYCHO_WS_MESSAGES__?.push(typeof data === "string" ? data : "[binary]");
+      return originalSend.call(this, data);
+    };
+  });
+
+  await login(page, "admin", "admin");
+  await startNamedSession(page, "Resize Fit");
+  await page.getByRole("button", { name: "Single session layout" }).click();
+  await page.getByRole("button", { name: "Four session layout" }).click();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() =>
+        (window.__TYCHO_WS_MESSAGES__ || [])
+          .map((message) => {
+            try {
+              return JSON.parse(message) as Record<string, unknown>;
+            } catch {
+              return null;
+            }
+          })
+          .filter((payload): payload is Record<string, unknown> => Boolean(payload) && payload.type === "resize")
+      )
+    )
+    .toContainEqual(expect.objectContaining({ type: "resize", cols: expect.any(Number), rows: expect.any(Number) }));
+
+  const invalidResizeCount = await page.evaluate(() =>
+    (window.__TYCHO_WS_MESSAGES__ || []).filter((message) => {
+      try {
+        const payload = JSON.parse(message) as Record<string, unknown>;
+        return payload.type === "resize" && (!(Number(payload.cols) > 0) || !(Number(payload.rows) > 0));
+      } catch {
+        return false;
+      }
+    }).length
+  );
+  expect(invalidResizeCount).toBe(0);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {
