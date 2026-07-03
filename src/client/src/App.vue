@@ -23,14 +23,12 @@
         <span>{{ routeTitle }}</span>
       </div>
       <div class="topbar-controls">
-        <label v-if="isWorkspaceRoute" class="topbar-project-select">
-          <span>Project</span>
-          <select id="projectSelect" v-model="selectedProjectId" class="project-select" @change="persistSelectedProject">
-            <option v-for="project in config.projects" :key="project.id" :value="project.id">
-              {{ project.name }}
-            </option>
-          </select>
-        </label>
+        <ProjectSwitcher
+          v-if="isWorkspaceRoute"
+          v-model:selected-project-id="selectedProjectId"
+          :projects="config.projects"
+          @change="persistSelectedProject"
+        />
         <div class="header-actions">
           <RouterLink v-if="!isWorkspaceRoute" class="button-link" to="/">Workspace</RouterLink>
           <div class="style-switcher" role="group" aria-label="Interface style">
@@ -80,6 +78,8 @@
         :layout-class="layoutClass"
         :active-slot-id="activeSlotId"
         :visible-slot-ids="visibleSlotIds"
+        :input-waiting-pane-ids="inputWaitingPaneIds"
+        :input-waiting-window-ids="inputWaitingWindowIds"
         :connection-label="connectionLabel"
         :project-form-status="projectFormStatus"
         :project-form-tone="projectFormTone"
@@ -151,6 +151,7 @@ import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
+import ProjectSwitcher from "./components/ProjectSwitcher.vue";
 import { resolveSelectedWindowId } from "../../shared/session-selection";
 import {
   allSessionSlotIds,
@@ -163,6 +164,7 @@ import {
   type SessionSlotId,
   type SlotAssignments
 } from "../../shared/session-slots";
+import { isPaneWaitingForInput } from "../../shared/tui-input-state";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -189,10 +191,10 @@ const terminalThemes: Record<InterfaceStyle, ITheme> = {
   },
   light: {
     background: "#fbfaf6",
-    foreground: "#1f2328",
-    cursor: "#0969da",
-    selectionBackground: "#b6d7ff",
-    selectionForeground: "#1f2328"
+    foreground: "#2d2b27",
+    cursor: "#b8860b",
+    selectionBackground: "#efd9a8",
+    selectionForeground: "#2d2b27"
   }
 };
 
@@ -286,6 +288,11 @@ const terminalEntries = computed<TerminalEntry[]>(() =>
     return pane ? [{ windowState, pane }] : [];
   })
 );
+const inputWaitingPaneIds = computed(() => new Set(state.panes.filter(isPaneWaitingForInput).map((pane) => pane.paneId)));
+const inputWaitingWindowIds = computed(() => {
+  const paneIds = inputWaitingPaneIds.value;
+  return new Set(state.windows.filter((windowState) => paneIds.has(windowState.activePaneId)).map((windowState) => windowState.id));
+});
 const slotEntries = computed<TerminalSlotEntry[]>(() =>
   visibleSlotIds.value.map((slotId, index) => {
     const windowState = projectWindows.value.find((candidate) => candidate.id === slotAssignments[slotId]);
@@ -489,6 +496,7 @@ function connect(): void {
     }
     if (message.type === "pane_output" && typeof message.paneId === "string" && typeof message.data === "string") {
       terminals.get(message.paneId)?.term.write(message.data);
+      appendPaneBuffer(message.paneId, message.data);
     }
   });
 }
@@ -538,6 +546,12 @@ function applyState(nextState: TuimuxState): void {
   }
   syncSlotAssignments(previousWindowIds);
   knownWindowIds.value = new Set(state.windows.map((windowState) => windowState.id));
+}
+
+function appendPaneBuffer(paneId: string, data: string): void {
+  state.panes = state.panes.map((pane) =>
+    pane.paneId === paneId ? { ...pane, buffer: (pane.buffer + data).slice(-100_000) } : pane
+  );
 }
 
 function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
@@ -854,7 +868,11 @@ function paneForWindowInProject(windowState: TuimuxWindow): TuimuxPane | undefin
 }
 
 function paneProjectId(pane: TuimuxPane): string | undefined {
-  return pane.entry.projectId;
+  if (pane.entry.projectId) {
+    return pane.entry.projectId;
+  }
+  const projectPath = pane.entry.projectPath || pane.entry.cwd;
+  return config.projects.find((project) => project.path === projectPath)?.id;
 }
 
 function setLayoutMode(mode: SessionLayoutMode): void {

@@ -28,7 +28,7 @@ These fields are derived from the internal entry env keys and do not expose arbi
 
 Add small helper functions in `src/client/src/App.vue`:
 
-- `paneProjectId(pane)` returns `pane.entry.projectId`.
+- `paneProjectId(pane)` returns `pane.entry.projectId`, falling back to matching `pane.entry.projectPath` or `pane.entry.cwd` against configured project paths for restored sessions created before project metadata existed.
 - `windowProjectId(windowState)` finds the window active pane and returns its project id.
 - `windowMatchesSelectedProject(windowState)` compares that project id with `selectedProjectId`.
 

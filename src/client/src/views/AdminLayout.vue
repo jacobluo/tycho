@@ -3,6 +3,7 @@
     <nav class="admin-sidebar" aria-label="Admin Management">
       <RouterLink to="/admin/projects">Project Management</RouterLink>
       <RouterLink to="/admin/users">User Management</RouterLink>
+      <RouterLink to="/admin/sessions">Session Management</RouterLink>
     </nav>
     <RouterView v-slot="{ Component }">
       <component

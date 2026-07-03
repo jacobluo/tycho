@@ -24,6 +24,14 @@ export type AgentEntry = {
   cwd: string;
   autostart: boolean;
   restart_on_exit: boolean;
+  projectId?: string;
+  projectName?: string;
+  projectPath?: string;
+  sessionAgentId?: string;
+  sessionAgentName?: string;
+  sessionCreatedAt?: string;
+  sessionUserId?: string;
+  sessionUsername?: string;
   env?: Record<string, string>;
 };
 
@@ -416,8 +424,19 @@ export function createSessionEntry(
     cwd: project.path,
     autostart: false,
     restart_on_exit: false,
+    projectId: project.id,
+    projectName: project.name,
+    projectPath: project.path,
+    sessionAgentId: agent.id,
+    sessionAgentName: agent.name,
+    sessionCreatedAt: now.toISOString(),
+    sessionUserId: env?.REMOTE_TUI_USER_ID,
+    sessionUsername: env?.REMOTE_TUI_USERNAME,
     env: {
       ...agent.env,
+      REMOTE_TUI_AGENT_ID: agent.id,
+      REMOTE_TUI_AGENT_NAME: agent.name,
+      REMOTE_TUI_CREATED_AT: now.toISOString(),
       REMOTE_TUI_PROJECT_ID: project.id,
       REMOTE_TUI_PROJECT_NAME: project.name,
       REMOTE_TUI_PROJECT_PATH: project.path,
@@ -463,7 +482,15 @@ export function getPublicRuntimeConfig(runtime = readRuntimeConfig(), projects =
 }
 
 export function toPublicAgentEntry(entry: AgentEntry): PublicAgentEntry {
-  const { env, ...publicEntry } = entry;
+  const {
+    env,
+    sessionAgentId: _sessionAgentId,
+    sessionAgentName: _sessionAgentName,
+    sessionCreatedAt: _sessionCreatedAt,
+    sessionUserId: _sessionUserId,
+    sessionUsername: _sessionUsername,
+    ...publicEntry
+  } = entry;
   return {
     ...publicEntry,
     ...(env?.REMOTE_TUI_PROJECT_ID ? { projectId: env.REMOTE_TUI_PROJECT_ID } : {}),

@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 declare global {
   interface Window {
     __TYCHO_WS_MESSAGES__?: string[];
+    __TYCHO_INJECT_WS_MESSAGE__?: (payload: unknown) => void;
   }
 }
 
@@ -33,7 +34,46 @@ async function chooseProjectDirectory(page: import("@playwright/test").Page, pro
   await expect(page.getByLabel("Local Path")).toHaveValue(projectPath);
 }
 
-async function login(page: import("@playwright/test").Page, username: string, password: string): Promise<void> {
+async function installWebSocketMessageInjector(page: import("@playwright/test").Page): Promise<void> {
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class TychoTestWebSocket extends NativeWebSocket {
+      private readonly tychoMessageListeners: EventListenerOrEventListenerObject[] = [];
+
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        window.__TYCHO_INJECT_WS_MESSAGE__ = (payload: unknown) => {
+          const event = new MessageEvent("message", { data: JSON.stringify(payload) });
+          for (const listener of this.tychoMessageListeners) {
+            if (typeof listener === "function") {
+              listener.call(this, event);
+            } else {
+              listener.handleEvent(event);
+            }
+          }
+        };
+      }
+
+      override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions
+      ): void {
+        if (type === "message" && listener) {
+          this.tychoMessageListeners.push(listener);
+        }
+        super.addEventListener(type, listener, options);
+      }
+    };
+  });
+}
+
+async function login(
+  page: import("@playwright/test").Page,
+  username: string,
+  password: string,
+  options: { clearSessions?: boolean } = {}
+): Promise<void> {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.removeItem("tycho-layout-mode");
@@ -44,11 +84,23 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page.getByRole("button", { name: `${username} ${roleLabel(username)}` })).toBeVisible();
-  await closeAllSessions(page);
+  if (options.clearSessions !== false) {
+    await closeAllSessions(page);
+  }
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
   await page.getByRole("button", { name: /.+ (管理员|普通用户)/ }).click();
+}
+
+async function selectWorkspaceProject(page: import("@playwright/test").Page, projectName: string): Promise<void> {
+  await page.getByRole("button", { name: /^Project / }).click();
+  await page.getByRole("option", { name: projectName, exact: true }).click();
+  await expect(page.getByRole("button", { name: new RegExp(`^Project ${projectName}$`) })).toBeVisible();
+}
+
+async function selectedWorkspaceProjectId(page: import("@playwright/test").Page): Promise<string> {
+  return (await page.locator("[data-project-switcher-trigger]").getAttribute("data-selected-project-id")) || "";
 }
 
 async function waitForWorkspaceConnection(page: import("@playwright/test").Page): Promise<void> {
@@ -173,6 +225,16 @@ async function openUserManagement(page: import("@playwright/test").Page): Promis
   await expect(page.locator("#userFormStatus")).toHaveCount(0);
 }
 
+async function openSessionManagement(page: import("@playwright/test").Page): Promise<void> {
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Admin Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await page.getByRole("link", { name: "Session Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/sessions$/);
+  await expect(page.getByRole("heading", { name: "Session Management" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Sessions" })).toBeVisible();
+}
+
 test.afterEach(() => {
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
@@ -291,6 +353,81 @@ test("interface style switch: toggles light style and persists across reload", a
   await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "dark");
 });
 
+test("custom project switcher: changes projects without native select", async ({ page }) => {
+  const alphaPath = makeProjectDir();
+  const betaPath = makeProjectDir();
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "Switcher Alpha", alphaPath);
+  await addManagedProject(page, "Switcher Beta", betaPath);
+  await page.getByRole("link", { name: "Workspace" }).click();
+
+  await expect(page.locator("#projectSelect")).toHaveCount(0);
+  await selectWorkspaceProject(page, "Switcher Alpha");
+  await expect(page.locator("#projectPath")).toHaveText(alphaPath);
+
+  await selectWorkspaceProject(page, "Switcher Beta");
+  await expect(page.locator("#projectPath")).toHaveText(betaPath);
+  await expect(page.getByRole("listbox", { name: "Projects" })).toHaveCount(0);
+
+  await deleteManagedProjectsByName(page, ["Switcher Alpha", "Switcher Beta"]);
+});
+
+test("input reminder: marks sessions that are waiting for user input", async ({ page }) => {
+  await installWebSocketMessageInjector(page);
+  await login(page, "admin", "admin");
+  const selectedProjectId = await selectedWorkspaceProjectId(page);
+  const selectedProjectPath = (await page.locator("#projectPath").textContent()) || "";
+  await page.evaluate(({ projectId, projectPath }) => {
+    window.__TYCHO_INJECT_WS_MESSAGE__?.({
+      type: "state",
+      state: {
+        connected: true,
+        windows: [{ id: "window-needs-input", title: "Needs Help", layout: {}, activePaneId: "pane-needs-input" }],
+        panes: [
+          {
+            paneId: "pane-needs-input",
+            status: "running",
+            buffer: "I can do either option.\nWhich approach should I use?",
+            entry: {
+              id: "codebuddy",
+              name: "CodeBuddy",
+              command: "codebuddy",
+              cwd: projectPath,
+              projectId,
+              projectPath,
+              autostart: false,
+              restart_on_exit: false
+            }
+          }
+        ],
+        activeWindowId: "window-needs-input",
+        activePaneId: "pane-needs-input"
+      }
+    });
+  }, { projectId: selectedProjectId, projectPath: selectedProjectPath });
+
+  const sidebarItem = page.locator("#sessionList .session-item", { hasText: "Needs Help" });
+  await expect(sidebarItem).toHaveClass(/input-waiting/);
+  await expect(sidebarItem.getByText("Needs input")).toBeVisible();
+
+  const card = visibleSessionCard(page, "Needs Help");
+  await expect(card).toHaveClass(/input-waiting/);
+  await expect(card.locator(".terminal-titlebar").getByText("Needs input")).toBeVisible();
+  await expect(card).toHaveAttribute("data-slot-id", "slot-1");
+
+  await page.evaluate(() => {
+    window.__TYCHO_INJECT_WS_MESSAGE__?.({
+      type: "pane_output",
+      paneId: "pane-needs-input",
+      data: "\nWorking on it now\n"
+    });
+  });
+
+  await expect(sidebarItem).not.toHaveClass(/input-waiting/);
+  await expect(card).not.toHaveClass(/input-waiting/);
+});
+
 test("workspace interactions: creating a session asks for a name and sends it", async ({ page }) => {
   await page.addInitScript(() => {
     window.__TYCHO_WS_MESSAGES__ = [];
@@ -324,6 +461,59 @@ test("workspace interactions: creating a session asks for a name and sends it", 
     )
     .toBe(true);
   await closeSession(page, "Focused Build");
+});
+
+test("user session isolation: admin manages ordinary user sessions from backend only", async ({ page }) => {
+  const username = `session-user-${Date.now()}`;
+  const password = "session-password";
+  const sessionName = "User Owned Session";
+
+  await login(page, "admin", "admin");
+  const projectName = (await page.locator(".project-switcher-name").textContent()) || "tycho";
+
+  await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("New Username").fill(username);
+  await page.getByLabel("New Password").fill(password);
+  await page.getByLabel("New Role").selectOption("user");
+  await page.getByRole("button", { name: "Save User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
+
+  const userRow = page.locator(`[data-user-row="${username}"]`);
+  await expect(userRow).toBeVisible();
+  await userRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel(projectName).check();
+  await page.getByRole("button", { name: "Save Projects" }).click();
+  await expect(page.locator(".user-status-message")).toHaveText("Projects saved");
+
+  await logout(page);
+  await login(page, username, password);
+  await startNamedSession(page, sessionName);
+  await expect(page.locator("#sessionList .session-item", { hasText: sessionName })).toBeVisible();
+  await expect(visibleSessionCard(page, sessionName)).toBeVisible();
+
+  await logout(page);
+  await login(page, "admin", "admin", { clearSessions: false });
+
+  await expect(page.locator("#sessionList .session-item", { hasText: sessionName })).toHaveCount(0);
+  await expect(visibleSessionCard(page, sessionName)).toHaveCount(0);
+
+  await openSessionManagement(page);
+  const sessionRow = page.getByRole("row", { name: new RegExp(`${sessionName}.*${username}.*CodeBuddy`) });
+  await expect(sessionRow).toBeVisible();
+  await expect(sessionRow.getByText(/\d{4}-\d{2}-\d{2}/)).toBeVisible();
+
+  await sessionRow.getByRole("button", { name: "View" }).click();
+  const drawer = page.getByRole("complementary", { name: "Session details" });
+  await expect(drawer.getByRole("heading", { name: "Session Details" })).toBeVisible();
+  await expect(drawer.getByText(sessionName)).toBeVisible();
+  await expect(drawer.getByText(username)).toBeVisible();
+
+  await drawer.getByRole("button", { name: "Close" }).click();
+  await expect(drawer).toHaveCount(0);
+  await sessionRow.getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator("#sessionAdminStatus")).toHaveText("Session deleted");
+  await expect(sessionRow).toHaveCount(0);
 });
 
 test("workspace interactions: focusing a session does not scroll the terminal grid", async ({ page }) => {
@@ -542,29 +732,96 @@ test("project scoped sessions: switching projects filters session list and slots
   await addManagedProject(page, "Project Scope Beta", betaPath);
   await page.getByRole("link", { name: "Workspace" }).click();
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await selectWorkspaceProject(page, "Project Scope Alpha");
   await startNamedSession(page, "Alpha Session");
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await selectWorkspaceProject(page, "Project Scope Beta");
   await startNamedSession(page, "Beta Session");
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toHaveCount(0);
   await expect(visibleSessionCard(page, "Alpha Session")).toHaveCount(0);
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await selectWorkspaceProject(page, "Project Scope Alpha");
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toHaveCount(0);
   await expect(visibleSessionCard(page, "Beta Session")).toHaveCount(0);
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await selectWorkspaceProject(page, "Project Scope Beta");
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
 
   await deleteManagedProjectsByName(page, ["Project Scope Alpha", "Project Scope Beta"]);
+});
+
+test("project scoped sessions: restored sessions without project metadata use cwd for filtering", async ({ page }) => {
+  const alphaPath = makeProjectDir();
+  const betaPath = makeProjectDir();
+
+  await installWebSocketMessageInjector(page);
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "Restored Scope Alpha", alphaPath);
+  await addManagedProject(page, "Restored Scope Beta", betaPath);
+  await page.getByRole("link", { name: "Workspace" }).click();
+
+  await page.evaluate(
+    ({ alphaPath: injectedAlphaPath, betaPath: injectedBetaPath }) => {
+      window.__TYCHO_INJECT_WS_MESSAGE__?.({
+        type: "state",
+        state: {
+          connected: true,
+          windows: [
+            { id: "window-restored-alpha", title: "Restored Alpha", layout: {}, activePaneId: "pane-restored-alpha" },
+            { id: "window-restored-beta", title: "Restored Beta", layout: {}, activePaneId: "pane-restored-beta" }
+          ],
+          panes: [
+            {
+              paneId: "pane-restored-alpha",
+              status: "running",
+              buffer: "> ",
+              entry: {
+                id: "codex-restored-alpha",
+                name: "Restored Alpha",
+                command: "codex",
+                cwd: injectedAlphaPath,
+                autostart: false,
+                restart_on_exit: false
+              }
+            },
+            {
+              paneId: "pane-restored-beta",
+              status: "running",
+              buffer: "> ",
+              entry: {
+                id: "codex-restored-beta",
+                name: "Restored Beta",
+                command: "codex",
+                cwd: injectedBetaPath,
+                autostart: false,
+                restart_on_exit: false
+              }
+            }
+          ],
+          activeWindowId: "window-restored-alpha",
+          activePaneId: "pane-restored-alpha"
+        }
+      });
+    },
+    { alphaPath, betaPath }
+  );
+
+  await selectWorkspaceProject(page, "Restored Scope Alpha");
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toHaveCount(0);
+
+  await selectWorkspaceProject(page, "Restored Scope Beta");
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toHaveCount(0);
+
+  await deleteManagedProjectsByName(page, ["Restored Scope Alpha", "Restored Scope Beta"]);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {
@@ -648,7 +905,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await logout(page);
   await login(page, "alice", "secret-secret");
 
-  await expect(page.locator("#projectSelect")).toHaveValue("assigned-project");
+  await expect.poll(() => selectedWorkspaceProjectId(page)).toBe("assigned-project");
   await expect(page.locator("#projectDescription")).toHaveText("Visible to assigned user");
   await openAccountMenu(page);
   await expect(page.getByRole("menuitem", { name: "Admin Management" })).toHaveCount(0);

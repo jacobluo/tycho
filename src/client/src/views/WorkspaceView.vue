@@ -42,12 +42,15 @@
             v-else
             :key="windowState.id"
             class="session-item"
-            :class="{ active: selectedWindowId === windowState.id }"
+            :class="{ active: selectedWindowId === windowState.id, 'input-waiting': inputWaitingWindowIds.has(windowState.id) }"
             @click="emit('focus-window', windowState.id)"
           >
             <div class="session-item-main">
               <strong>{{ windowState.title }}</strong>
-              <span>{{ paneForWindow(windowState)?.status || "starting" }}</span>
+              <span>
+                {{ paneForWindow(windowState)?.status || "starting" }}
+                <span v-if="inputWaitingWindowIds.has(windowState.id)" class="input-waiting-badge">Needs input</span>
+              </span>
               <small>{{ paneForWindow(windowState)?.entry.cwd || "" }}</small>
             </div>
             <button
@@ -91,7 +94,7 @@
           v-else
           :key="entry.slotId"
           class="terminal-card"
-          :class="{ active: activeSlotId === entry.slotId }"
+          :class="{ active: activeSlotId === entry.slotId, 'input-waiting': Boolean(entry.pane && inputWaitingPaneIds.has(entry.pane.paneId)) }"
           :data-slot-id="entry.slotId"
           :data-session-title="entry.windowState?.title || ''"
           :data-window-id="entry.windowState?.id || ''"
@@ -113,6 +116,7 @@
               </select>
               <span v-if="entry.pane">{{ entry.pane.status }} / {{ entry.pane.entry.cwd }}</span>
               <span v-else>{{ entry.label }}</span>
+              <span v-if="entry.pane && inputWaitingPaneIds.has(entry.pane.paneId)" class="input-waiting-badge">Needs input</span>
             </div>
             <div class="terminal-actions">
               <button type="button" :disabled="!entry.windowState" @click="emit('clear-slot', entry.slotId)">Hide</button>
@@ -168,6 +172,8 @@ defineProps<{
   layoutClass: SessionLayoutMode;
   activeSlotId: SessionSlotId;
   visibleSlotIds: SessionSlotId[];
+  inputWaitingPaneIds: Set<string>;
+  inputWaitingWindowIds: Set<string>;
   connectionLabel: string;
   paneForWindow: (windowState: TuimuxWindow) => TerminalEntry["pane"] | undefined;
 }>();
