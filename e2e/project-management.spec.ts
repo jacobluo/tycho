@@ -34,6 +34,40 @@ async function chooseProjectDirectory(page: import("@playwright/test").Page, pro
   await expect(page.getByLabel("Local Path")).toHaveValue(projectPath);
 }
 
+async function installWebSocketMessageInjector(page: import("@playwright/test").Page): Promise<void> {
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class TychoTestWebSocket extends NativeWebSocket {
+      private readonly tychoMessageListeners: EventListenerOrEventListenerObject[] = [];
+
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        window.__TYCHO_INJECT_WS_MESSAGE__ = (payload: unknown) => {
+          const event = new MessageEvent("message", { data: JSON.stringify(payload) });
+          for (const listener of this.tychoMessageListeners) {
+            if (typeof listener === "function") {
+              listener.call(this, event);
+            } else {
+              listener.handleEvent(event);
+            }
+          }
+        };
+      }
+
+      override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions
+      ): void {
+        if (type === "message" && listener) {
+          this.tychoMessageListeners.push(listener);
+        }
+        super.addEventListener(type, listener, options);
+      }
+    };
+  });
+}
+
 async function login(page: import("@playwright/test").Page, username: string, password: string): Promise<void> {
   await page.goto("/");
   await page.evaluate(() => {
@@ -293,40 +327,11 @@ test("interface style switch: toggles light style and persists across reload", a
 });
 
 test("input reminder: marks sessions that are waiting for user input", async ({ page }) => {
-  await page.addInitScript(() => {
-    const NativeWebSocket = window.WebSocket;
-    window.WebSocket = class TychoTestWebSocket extends NativeWebSocket {
-      private readonly tychoMessageListeners: EventListenerOrEventListenerObject[] = [];
-
-      constructor(url: string | URL, protocols?: string | string[]) {
-        super(url, protocols);
-        window.__TYCHO_INJECT_WS_MESSAGE__ = (payload: unknown) => {
-          const event = new MessageEvent("message", { data: JSON.stringify(payload) });
-          for (const listener of this.tychoMessageListeners) {
-            if (typeof listener === "function") {
-              listener.call(this, event);
-            } else {
-              listener.handleEvent(event);
-            }
-          }
-        };
-      }
-
-      override addEventListener(
-        type: string,
-        listener: EventListenerOrEventListenerObject | null,
-        options?: boolean | AddEventListenerOptions
-      ): void {
-        if (type === "message" && listener) {
-          this.tychoMessageListeners.push(listener);
-        }
-        super.addEventListener(type, listener, options);
-      }
-    };
-  });
-
+  await installWebSocketMessageInjector(page);
   await login(page, "admin", "admin");
-  await page.evaluate(() => {
+  const selectedProjectId = await page.locator("#projectSelect").inputValue();
+  const selectedProjectPath = (await page.locator("#projectPath").textContent()) || "";
+  await page.evaluate(({ projectId, projectPath }) => {
     window.__TYCHO_INJECT_WS_MESSAGE__?.({
       type: "state",
       state: {
@@ -341,7 +346,9 @@ test("input reminder: marks sessions that are waiting for user input", async ({ 
               id: "codebuddy",
               name: "CodeBuddy",
               command: "codebuddy",
-              cwd: "/tmp/tycho-reminder",
+              cwd: projectPath,
+              projectId,
+              projectPath,
               autostart: false,
               restart_on_exit: false
             }
@@ -351,7 +358,7 @@ test("input reminder: marks sessions that are waiting for user input", async ({ 
         activePaneId: "pane-needs-input"
       }
     });
-  });
+  }, { projectId: selectedProjectId, projectPath: selectedProjectPath });
 
   const sidebarItem = page.locator("#sessionList .session-item", { hasText: "Needs Help" });
   await expect(sidebarItem).toHaveClass(/input-waiting/);
@@ -648,6 +655,73 @@ test("project scoped sessions: switching projects filters session list and slots
   await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
 
   await deleteManagedProjectsByName(page, ["Project Scope Alpha", "Project Scope Beta"]);
+});
+
+test("project scoped sessions: restored sessions without project metadata use cwd for filtering", async ({ page }) => {
+  const alphaPath = makeProjectDir();
+  const betaPath = makeProjectDir();
+
+  await installWebSocketMessageInjector(page);
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "Restored Scope Alpha", alphaPath);
+  await addManagedProject(page, "Restored Scope Beta", betaPath);
+  await page.getByRole("link", { name: "Workspace" }).click();
+
+  await page.evaluate(
+    ({ alphaPath: injectedAlphaPath, betaPath: injectedBetaPath }) => {
+      window.__TYCHO_INJECT_WS_MESSAGE__?.({
+        type: "state",
+        state: {
+          connected: true,
+          windows: [
+            { id: "window-restored-alpha", title: "Restored Alpha", layout: {}, activePaneId: "pane-restored-alpha" },
+            { id: "window-restored-beta", title: "Restored Beta", layout: {}, activePaneId: "pane-restored-beta" }
+          ],
+          panes: [
+            {
+              paneId: "pane-restored-alpha",
+              status: "running",
+              buffer: "> ",
+              entry: {
+                id: "codex-restored-alpha",
+                name: "Restored Alpha",
+                command: "codex",
+                cwd: injectedAlphaPath,
+                autostart: false,
+                restart_on_exit: false
+              }
+            },
+            {
+              paneId: "pane-restored-beta",
+              status: "running",
+              buffer: "> ",
+              entry: {
+                id: "codex-restored-beta",
+                name: "Restored Beta",
+                command: "codex",
+                cwd: injectedBetaPath,
+                autostart: false,
+                restart_on_exit: false
+              }
+            }
+          ],
+          activeWindowId: "window-restored-alpha",
+          activePaneId: "pane-restored-alpha"
+        }
+      });
+    },
+    { alphaPath, betaPath }
+  );
+
+  await page.locator("#projectSelect").selectOption({ label: "Restored Scope Alpha" });
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toHaveCount(0);
+
+  await page.locator("#projectSelect").selectOption({ label: "Restored Scope Beta" });
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toHaveCount(0);
+
+  await deleteManagedProjectsByName(page, ["Restored Scope Alpha", "Restored Scope Beta"]);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {

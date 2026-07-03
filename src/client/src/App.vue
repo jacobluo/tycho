@@ -869,7 +869,11 @@ function paneForWindowInProject(windowState: TuimuxWindow): TuimuxPane | undefin
 }
 
 function paneProjectId(pane: TuimuxPane): string | undefined {
-  return pane.entry.projectId;
+  if (pane.entry.projectId) {
+    return pane.entry.projectId;
+  }
+  const projectPath = pane.entry.projectPath || pane.entry.cwd;
+  return config.projects.find((project) => project.path === projectPath)?.id;
 }
 
 function setLayoutMode(mode: SessionLayoutMode): void {

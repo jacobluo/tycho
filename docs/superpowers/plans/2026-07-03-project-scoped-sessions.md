@@ -222,3 +222,54 @@ git commit -m "feat: filter sessions by selected project"
 ```
 
 Expected: commit succeeds.
+
+### Task 4: Restored Session Project Fallback
+
+**Files:**
+- Modify: `e2e/project-management.spec.ts`
+- Modify: `src/client/src/App.vue`
+- Modify: `docs/superpowers/specs/2026-07-03-project-scoped-sessions-design.md`
+- Modify: `docs/superpowers/plans/2026-07-03-project-scoped-sessions.md`
+
+- [x] **Step 1: Add regression test for restored sessions without metadata**
+
+Add an E2E test named `project scoped sessions: restored sessions without project metadata use cwd for filtering`. The test injects two browser-visible panes with no `entry.projectId`, only `entry.cwd` values matching two managed project paths, then switches the project selector and verifies only the matching session appears.
+
+- [x] **Step 2: Run regression test and confirm red**
+
+Run:
+
+```bash
+scripts/e2e --grep "restored sessions without project metadata"
+```
+
+Expected: FAIL because `paneProjectId` only reads `entry.projectId`.
+
+- [x] **Step 3: Implement cwd fallback**
+
+Update `paneProjectId` so it:
+
+1. returns `pane.entry.projectId` when present;
+2. otherwise uses `pane.entry.projectPath || pane.entry.cwd`;
+3. returns the id of the configured project whose path matches that value.
+
+- [x] **Step 4: Run regression test and confirm green**
+
+Run:
+
+```bash
+scripts/e2e --grep "restored sessions without project metadata"
+```
+
+Expected: PASS.
+
+- [x] **Step 5: Run broad verification**
+
+Run:
+
+```bash
+scripts/typecheck
+scripts/e2e --grep "project scoped sessions|restored sessions without project metadata|session slot layout"
+```
+
+Expected: PASS.
