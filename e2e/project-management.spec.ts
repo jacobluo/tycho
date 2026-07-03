@@ -59,18 +59,27 @@ async function waitForWorkspaceConnection(page: import("@playwright/test").Page)
 async function closeAllSessions(page: import("@playwright/test").Page): Promise<void> {
   await waitForWorkspaceConnection(page);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const closeButtons = page.locator("#sessionList .session-close-button");
-    const sessionCount = await closeButtons.count();
-    if (sessionCount === 0) {
+    const windows = await page.evaluate(async () => {
+      const response = await fetch("/api/state");
+      const state = (await response.json()) as { windows?: Array<{ id: string }> };
+      return state.windows || [];
+    });
+    if (windows.length === 0) {
       return;
     }
 
-    await closeButtons.first().click();
-    const dialog = page.getByRole("dialog", { name: "Close Session" });
-    await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: "Close Session" }).click();
-    await expect(dialog).toHaveCount(0);
-    await expect(closeButtons).toHaveCount(sessionCount - 1);
+    await page.evaluate(async (windowId) => {
+      await fetch(`/api/windows/${encodeURIComponent(windowId)}`, { method: "DELETE" });
+    }, windows[0].id);
+    await expect
+      .poll(async () =>
+        page.evaluate(async () => {
+          const response = await fetch("/api/state");
+          const state = (await response.json()) as { windows?: Array<{ id: string }> };
+          return state.windows?.length || 0;
+        })
+      )
+      .toBe(windows.length - 1);
   }
   throw new Error("Could not clear existing sessions before the test");
 }
@@ -87,6 +96,30 @@ async function startNamedSession(page: import("@playwright/test").Page, name: st
   await dialog.getByRole("button", { name: "Start Session" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(visibleSessionCard(page, name)).toBeVisible();
+}
+
+async function addManagedProject(page: import("@playwright/test").Page, name: string, projectPath: string): Promise<void> {
+  await openProjectManagement(page);
+  await page.getByRole("button", { name: "Add Project" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await chooseProjectDirectory(page, projectPath);
+  await page.getByLabel("Description").fill(`${name} description`);
+  await page.getByRole("button", { name: "Save Project" }).click();
+  await expect(page.locator("#projectFormStatus")).toHaveText("Project added");
+  await expect(page.getByRole("row", { name: new RegExp(name) })).toBeVisible();
+}
+
+async function deleteManagedProjectsByName(page: import("@playwright/test").Page, names: string[]): Promise<void> {
+  const deletedNames = await page.evaluate(async (projectNames) => {
+    const configResponse = await fetch("/api/config");
+    const config = (await configResponse.json()) as { projects?: Array<{ id: string; name: string; managed?: boolean }> };
+    const projects = (config.projects || []).filter((project) => project.managed && projectNames.includes(project.name));
+    for (const project of projects) {
+      await fetch(`/api/projects/${encodeURIComponent(project.id)}`, { method: "DELETE" });
+    }
+    return [...new Set(projects.map((project) => project.name))].sort();
+  }, names);
+  expect(deletedNames).toEqual([...names].sort());
 }
 
 function visibleSessionCard(page: import("@playwright/test").Page, name: string): import("@playwright/test").Locator {
@@ -581,6 +614,40 @@ test("terminal resize fit: emits valid resize dimensions across layout changes",
     }).length
   );
   expect(invalidResizeCount).toBe(0);
+});
+
+test("project scoped sessions: switching projects filters session list and slots without closing sessions", async ({ page }) => {
+  const alphaPath = makeProjectDir();
+  const betaPath = makeProjectDir();
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "Project Scope Alpha", alphaPath);
+  await addManagedProject(page, "Project Scope Beta", betaPath);
+  await page.getByRole("link", { name: "Workspace" }).click();
+
+  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await startNamedSession(page, "Alpha Session");
+  await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
+
+  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await startNamedSession(page, "Beta Session");
+  await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toHaveCount(0);
+  await expect(visibleSessionCard(page, "Alpha Session")).toHaveCount(0);
+
+  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
+  await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toHaveCount(0);
+  await expect(visibleSessionCard(page, "Beta Session")).toHaveCount(0);
+
+  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
+  await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
+
+  await deleteManagedProjectsByName(page, ["Project Scope Alpha", "Project Scope Beta"]);
 });
 
 test("shows a validation error for an invalid project path", async ({ page }) => {
