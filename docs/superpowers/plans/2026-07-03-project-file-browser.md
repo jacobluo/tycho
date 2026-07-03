@@ -748,3 +748,36 @@ git commit -m "docs: complete project file browser plan"
 ```
 
 If only checklist updates changed and they were already included in prior commits, this final commit can be skipped.
+
+## Task 6: Drawer Body Full-Height Follow-Up
+
+**Files:**
+- Modify: `src/client-interface-style.test.ts`
+- Modify: `src/client/src/styles.css`
+- Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
+
+- [x] **Step 1: Add a failing layout regression test**
+
+Run:
+
+```bash
+pnpm exec tsx --test src/client-interface-style.test.ts
+```
+
+Expected before implementation: FAIL because the drawer body still uses an upper file-list row and lower preview row.
+
+- [x] **Step 2: Make the drawer body use full-height columns**
+
+Change the project files body to a two-column grid on normal viewports so the file list and preview both fill the drawer height. Keep a narrow viewport fallback that stacks list and preview.
+
+- [x] **Step 3: Run focused and full verification**
+
+Run:
+
+```bash
+pnpm exec tsx --test src/client-interface-style.test.ts
+pnpm run build
+pnpm run verify
+```
+
+Expected: PASS.

@@ -1037,12 +1037,13 @@ button.danger:hover {
 
 .project-files-body {
   display: grid;
-  grid-template-rows: minmax(160px, 42%) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
   min-height: 0;
 }
 
 .project-files-list {
-  border-bottom: 1px solid var(--line);
+  border-bottom: 0;
+  border-right: 1px solid var(--line);
   min-height: 0;
   overflow: auto;
   padding: 8px;
@@ -1996,6 +1997,16 @@ button.danger:hover {
 
   .project-files-resize-handle {
     display: none;
+  }
+
+  .project-files-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 1fr) minmax(240px, 0.9fr);
+  }
+
+  .project-files-list {
+    border-bottom: 1px solid var(--line);
+    border-right: 0;
   }
 
   .workspace-header {
