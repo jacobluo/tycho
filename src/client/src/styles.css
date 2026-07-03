@@ -136,7 +136,7 @@ textarea:focus {
 .app-shell.routed-shell {
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: 58px minmax(0, 1fr);
+  grid-template-rows: 50px minmax(0, 1fr);
 }
 
 .app-topbar {
@@ -146,7 +146,7 @@ textarea:focus {
   display: flex;
   justify-content: space-between;
   min-width: 0;
-  padding: 0 18px;
+  padding: 0 16px;
   position: relative;
   z-index: 50;
 }
@@ -156,7 +156,7 @@ textarea:focus {
 }
 
 .app-topbar h1 {
-  font-size: 20px;
+  font-size: 18px;
   margin: 0;
 }
 
