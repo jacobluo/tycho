@@ -54,7 +54,11 @@ export type RuntimeConfig = {
   webPort: number;
 };
 
-export type PublicAgentEntry = Omit<AgentEntry, "env">;
+export type PublicAgentEntry = Omit<AgentEntry, "env"> & {
+  projectId?: string;
+  projectName?: string;
+  projectPath?: string;
+};
 
 export type PublicTuimuxPane = {
   paneId: string;
@@ -459,8 +463,13 @@ export function getPublicRuntimeConfig(runtime = readRuntimeConfig(), projects =
 }
 
 export function toPublicAgentEntry(entry: AgentEntry): PublicAgentEntry {
-  const { env: _env, ...publicEntry } = entry;
-  return publicEntry;
+  const { env, ...publicEntry } = entry;
+  return {
+    ...publicEntry,
+    ...(env?.REMOTE_TUI_PROJECT_ID ? { projectId: env.REMOTE_TUI_PROJECT_ID } : {}),
+    ...(env?.REMOTE_TUI_PROJECT_NAME ? { projectName: env.REMOTE_TUI_PROJECT_NAME } : {}),
+    ...(env?.REMOTE_TUI_PROJECT_PATH ? { projectPath: env.REMOTE_TUI_PROJECT_PATH } : {})
+  };
 }
 
 export function toPublicTuimuxState(state: {

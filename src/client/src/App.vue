@@ -67,7 +67,7 @@
         :is="Component"
         v-model:selected-project-id="selectedProjectId"
         :config="config"
-        :state="state"
+        :state="projectState"
         :users="users"
         :user-edits="userEdits"
         :project-form="projectForm"
@@ -88,7 +88,7 @@
         :project-form-busy="projectFormBusy"
         :project-delete-busy="projectDeleteBusy"
         :user-form-busy="userFormBusy"
-        :pane-for-window="paneForWindow"
+        :pane-for-window="paneForWindowInProject"
         @persist-selected-project="persistSelectedProject"
         @create-session="openSessionDialog"
         @focus-window="focusWindow"
@@ -259,27 +259,37 @@ const selectedProject = computed(() => config.projects.find((project) => project
 const pendingSessionAgent = computed(() => config.agents.find((agent) => agent.id === pendingSessionAgentId.value));
 const pendingCloseWindow = computed(() => state.windows.find((windowState) => windowState.id === pendingCloseWindowId.value));
 const visibleSlotIds = computed(() => resolveVisibleSlotIds(layoutMode.value, viewportWidth.value));
+const projectPanes = computed(() => state.panes.filter((pane) => paneProjectId(pane) === selectedProjectId.value));
+const projectPaneIds = computed(() => new Set(projectPanes.value.map((pane) => pane.paneId)));
+const projectWindows = computed(() => state.windows.filter((windowState) => projectPaneIds.value.has(windowState.activePaneId)));
+const projectState = computed<TuimuxState>(() => ({
+  ...state,
+  windows: projectWindows.value,
+  panes: projectPanes.value,
+  activeWindowId: projectWindows.value.some((windowState) => windowState.id === state.activeWindowId) ? state.activeWindowId : null,
+  activePaneId: projectPaneIds.value.has(state.activePaneId || "") ? state.activePaneId : null
+}));
 const selectedWindowId = computed(() => {
   const activeSlotWindowId = slotAssignments[activeSlotId.value];
-  if (activeSlotWindowId && state.windows.some((windowState) => windowState.id === activeSlotWindowId)) {
+  if (activeSlotWindowId && projectWindows.value.some((windowState) => windowState.id === activeSlotWindowId)) {
     return activeSlotWindowId;
   }
-  return resolveSelectedWindowId(state.windows, {
+  return resolveSelectedWindowId(projectWindows.value, {
     localActivePaneId: activePaneId.value,
-    serverActivePaneId: state.activePaneId,
-    serverActiveWindowId: state.activeWindowId
+    serverActivePaneId: projectState.value.activePaneId,
+    serverActiveWindowId: projectState.value.activeWindowId
   });
 });
 const terminalEntries = computed<TerminalEntry[]>(() =>
-  state.windows.flatMap((windowState) => {
-    const pane = paneForWindow(windowState);
+  projectWindows.value.flatMap((windowState) => {
+    const pane = paneForWindowInProject(windowState);
     return pane ? [{ windowState, pane }] : [];
   })
 );
 const slotEntries = computed<TerminalSlotEntry[]>(() =>
   visibleSlotIds.value.map((slotId, index) => {
-    const windowState = state.windows.find((candidate) => candidate.id === slotAssignments[slotId]);
-    const pane = windowState ? paneForWindow(windowState) : undefined;
+    const windowState = projectWindows.value.find((candidate) => candidate.id === slotAssignments[slotId]);
+    const pane = windowState ? paneForWindowInProject(windowState) : undefined;
     return {
       slotId,
       label: `Slot ${index + 1}`,
@@ -556,7 +566,7 @@ function getProjectId(preferredProjectId?: string): string {
 }
 
 function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
-  const liveWindowIds = state.windows.map((windowState) => windowState.id);
+  const liveWindowIds = projectWindows.value.map((windowState) => windowState.id);
   const liveWindowIdSet = new Set(liveWindowIds);
   let nextAssignments = pruneSlotAssignments(slotAssignments, liveWindowIds);
   const visibleIds = visibleSlotIds.value;
@@ -565,7 +575,7 @@ function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
   }
 
   const assignedWindowIds = new Set(Object.values(nextAssignments).filter((windowId): windowId is string => Boolean(windowId)));
-  for (const windowState of state.windows) {
+  for (const windowState of projectWindows.value) {
     if (assignedWindowIds.has(windowState.id)) {
       continue;
     }
@@ -577,7 +587,7 @@ function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
     assignedWindowIds.add(windowState.id);
   }
 
-  const newWindow = state.windows.find((windowState) => !previousWindowIds.has(windowState.id));
+  const newWindow = projectWindows.value.find((windowState) => !previousWindowIds.has(windowState.id));
   const newWindowAssigned = newWindow ? Object.values(nextAssignments).includes(newWindow.id) : false;
   if (newWindow && previousWindowIds.size > 0 && liveWindowIdSet.has(newWindow.id) && !newWindowAssigned) {
     nextAssignments = assignWindowToSlot(nextAssignments, activeSlotId.value, newWindow.id);
@@ -589,10 +599,10 @@ function syncSlotAssignments(previousWindowIds = knownWindowIds.value): void {
   }
 
   if (!nextAssignments[activeSlotId.value]) {
-    const preferredWindowId = resolveSelectedWindowId(state.windows, {
+    const preferredWindowId = resolveSelectedWindowId(projectWindows.value, {
       localActivePaneId: activePaneId.value,
-      serverActivePaneId: state.activePaneId,
-      serverActiveWindowId: state.activeWindowId
+      serverActivePaneId: projectState.value.activePaneId,
+      serverActiveWindowId: projectState.value.activeWindowId
     });
     const preferredSlotId = visibleIds.find((slotId) => nextAssignments[slotId] === preferredWindowId);
     const occupiedSlotId = visibleIds.find((slotId) => Boolean(nextAssignments[slotId]));
@@ -607,6 +617,7 @@ function persistSelectedProject(): void {
   if (selectedProjectId.value) {
     localStorage.setItem("tycho-project-id", selectedProjectId.value);
   }
+  syncSlotAssignments();
 }
 
 function openManagementFromMenu(): void {
@@ -836,6 +847,14 @@ function setPasswordFormStatus(message: string, tone = ""): void {
 
 function paneForWindow(windowState: TuimuxWindow): TuimuxPane | undefined {
   return state.panes.find((pane) => pane.paneId === windowState.activePaneId);
+}
+
+function paneForWindowInProject(windowState: TuimuxWindow): TuimuxPane | undefined {
+  return projectPanes.value.find((pane) => pane.paneId === windowState.activePaneId);
+}
+
+function paneProjectId(pane: TuimuxPane): string | undefined {
+  return pane.entry.projectId;
 }
 
 function setLayoutMode(mode: SessionLayoutMode): void {

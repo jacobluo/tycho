@@ -116,6 +116,9 @@ describe("runtime config", () => {
     assert.equal(publicEntry.id, entry.id);
     assert.equal(publicEntry.name, entry.name);
     assert.equal(publicEntry.cwd, projectPath);
+    assert.equal(publicEntry.projectId, "safe-entry");
+    assert.equal(publicEntry.projectName, "Safe Entry");
+    assert.equal(publicEntry.projectPath, projectPath);
   });
 
   test("browser-safe tuimux state omits nested pane env", () => {
@@ -138,6 +141,9 @@ describe("runtime config", () => {
     assert.equal("env" in publicState.panes[0].entry, false);
     assert.equal(publicState.panes[0].entry.name, "Safe state");
     assert.equal(publicState.panes[0].buffer, "hello");
+    assert.equal(publicState.panes[0].entry.projectId, "safe-state");
+    assert.equal(publicState.panes[0].entry.projectName, "Safe State");
+    assert.equal(publicState.panes[0].entry.projectPath, projectPath);
   });
 
   test("public config default project falls back to visible projects", () => {
