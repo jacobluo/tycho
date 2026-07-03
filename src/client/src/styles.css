@@ -9,6 +9,8 @@
   --line: #343c49;
   --accent: #4fb8ff;
   --accent-strong: #a5dcff;
+  --attention: #f5b84b;
+  --attention-soft: rgba(245, 184, 75, 0.14);
   --danger: #ff726f;
 }
 
@@ -506,6 +508,16 @@ button.danger:hover {
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
+.session-item.input-waiting {
+  border-color: color-mix(in srgb, var(--attention) 68%, var(--line));
+  box-shadow: inset 3px 0 0 var(--attention);
+}
+
+.session-item.active.input-waiting {
+  background: linear-gradient(90deg, var(--attention-soft), rgba(79, 184, 255, 0.08));
+  border-color: var(--attention);
+}
+
 .session-item-main {
   min-width: 0;
 }
@@ -524,6 +536,24 @@ button.danger:hover {
   display: block;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.input-waiting-badge {
+  align-items: center;
+  background: var(--attention-soft);
+  border: 1px solid color-mix(in srgb, var(--attention) 58%, transparent);
+  border-radius: 999px;
+  color: var(--attention);
+  display: inline-flex !important;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 8px;
+  margin-top: 0 !important;
+  min-height: 20px;
+  padding: 0 8px;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
 .session-item small {
@@ -1008,6 +1038,17 @@ button.danger:hover {
   box-shadow: 0 0 0 1px rgba(79, 184, 255, 0.22);
 }
 
+.terminal-card.input-waiting {
+  border-color: var(--attention);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--attention) 36%, transparent);
+}
+
+.terminal-card.active.input-waiting {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--attention) 50%, transparent),
+    0 0 0 4px var(--attention-soft);
+}
+
 .terminal-titlebar {
   align-items: center;
   background: #151922;
@@ -1311,6 +1352,8 @@ button.danger:hover {
   --line: #dedbd3;
   --accent: #23c86b;
   --accent-strong: #1f6f49;
+  --attention: #b87516;
+  --attention-soft: rgba(184, 117, 22, 0.12);
   --danger: #b94a48;
   background:
     linear-gradient(90deg, rgba(205, 201, 202, 0.42) 0 280px, transparent 280px),

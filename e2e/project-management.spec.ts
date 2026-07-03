@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 declare global {
   interface Window {
     __TYCHO_WS_MESSAGES__?: string[];
+    __TYCHO_INJECT_WS_MESSAGE__?: (payload: unknown) => void;
   }
 }
 
@@ -256,6 +257,88 @@ test("interface style switch: toggles light style and persists across reload", a
   await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "light");
   await styleGroup.getByRole("button", { name: "Dark" }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "dark");
+});
+
+test("input reminder: marks sessions that are waiting for user input", async ({ page }) => {
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class TychoTestWebSocket extends NativeWebSocket {
+      private readonly tychoMessageListeners: EventListenerOrEventListenerObject[] = [];
+
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        window.__TYCHO_INJECT_WS_MESSAGE__ = (payload: unknown) => {
+          const event = new MessageEvent("message", { data: JSON.stringify(payload) });
+          for (const listener of this.tychoMessageListeners) {
+            if (typeof listener === "function") {
+              listener.call(this, event);
+            } else {
+              listener.handleEvent(event);
+            }
+          }
+        };
+      }
+
+      override addEventListener(
+        type: string,
+        listener: EventListenerOrEventListenerObject | null,
+        options?: boolean | AddEventListenerOptions
+      ): void {
+        if (type === "message" && listener) {
+          this.tychoMessageListeners.push(listener);
+        }
+        super.addEventListener(type, listener, options);
+      }
+    };
+  });
+
+  await login(page, "admin", "admin");
+  await page.evaluate(() => {
+    window.__TYCHO_INJECT_WS_MESSAGE__?.({
+      type: "state",
+      state: {
+        connected: true,
+        windows: [{ id: "window-needs-input", title: "Needs Help", layout: {}, activePaneId: "pane-needs-input" }],
+        panes: [
+          {
+            paneId: "pane-needs-input",
+            status: "running",
+            buffer: "I can do either option.\nWhich approach should I use?",
+            entry: {
+              id: "codebuddy",
+              name: "CodeBuddy",
+              command: "codebuddy",
+              cwd: "/tmp/tycho-reminder",
+              autostart: false,
+              restart_on_exit: false
+            }
+          }
+        ],
+        activeWindowId: "window-needs-input",
+        activePaneId: "pane-needs-input"
+      }
+    });
+  });
+
+  const sidebarItem = page.locator("#sessionList .session-item", { hasText: "Needs Help" });
+  await expect(sidebarItem).toHaveClass(/input-waiting/);
+  await expect(sidebarItem.getByText("Needs input")).toBeVisible();
+
+  const card = visibleSessionCard(page, "Needs Help");
+  await expect(card).toHaveClass(/input-waiting/);
+  await expect(card.locator(".terminal-titlebar").getByText("Needs input")).toBeVisible();
+  await expect(card).toHaveAttribute("data-slot-id", "slot-1");
+
+  await page.evaluate(() => {
+    window.__TYCHO_INJECT_WS_MESSAGE__?.({
+      type: "pane_output",
+      paneId: "pane-needs-input",
+      data: "\nWorking on it now\n"
+    });
+  });
+
+  await expect(sidebarItem).not.toHaveClass(/input-waiting/);
+  await expect(card).not.toHaveClass(/input-waiting/);
 });
 
 test("workspace interactions: creating a session asks for a name and sends it", async ({ page }) => {

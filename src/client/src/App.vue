@@ -80,6 +80,8 @@
         :layout-class="layoutClass"
         :active-slot-id="activeSlotId"
         :visible-slot-ids="visibleSlotIds"
+        :input-waiting-pane-ids="inputWaitingPaneIds"
+        :input-waiting-window-ids="inputWaitingWindowIds"
         :connection-label="connectionLabel"
         :project-form-status="projectFormStatus"
         :project-form-tone="projectFormTone"
@@ -163,6 +165,7 @@ import {
   type SessionSlotId,
   type SlotAssignments
 } from "../../shared/session-slots";
+import { isPaneWaitingForInput } from "../../shared/tui-input-state";
 import type {
   PublicRuntimeConfig,
   ProjectConfig,
@@ -276,6 +279,11 @@ const terminalEntries = computed<TerminalEntry[]>(() =>
     return pane ? [{ windowState, pane }] : [];
   })
 );
+const inputWaitingPaneIds = computed(() => new Set(state.panes.filter(isPaneWaitingForInput).map((pane) => pane.paneId)));
+const inputWaitingWindowIds = computed(() => {
+  const paneIds = inputWaitingPaneIds.value;
+  return new Set(state.windows.filter((windowState) => paneIds.has(windowState.activePaneId)).map((windowState) => windowState.id));
+});
 const slotEntries = computed<TerminalSlotEntry[]>(() =>
   visibleSlotIds.value.map((slotId, index) => {
     const windowState = state.windows.find((candidate) => candidate.id === slotAssignments[slotId]);
@@ -479,6 +487,7 @@ function connect(): void {
     }
     if (message.type === "pane_output" && typeof message.paneId === "string" && typeof message.data === "string") {
       terminals.get(message.paneId)?.term.write(message.data);
+      appendPaneBuffer(message.paneId, message.data);
     }
   });
 }
@@ -528,6 +537,12 @@ function applyState(nextState: TuimuxState): void {
   }
   syncSlotAssignments(previousWindowIds);
   knownWindowIds.value = new Set(state.windows.map((windowState) => windowState.id));
+}
+
+function appendPaneBuffer(paneId: string, data: string): void {
+  state.panes = state.panes.map((pane) =>
+    pane.paneId === paneId ? { ...pane, buffer: (pane.buffer + data).slice(-100_000) } : pane
+  );
 }
 
 function mergeWindowsPreservingOrder(windows: TuimuxWindow[], incomingWindows: TuimuxWindow[]): TuimuxWindow[] {
