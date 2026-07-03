@@ -44,11 +44,11 @@
             </button>
             <button
               type="button"
-              :class="{ active: interfaceStyle === 'reader' }"
-              :aria-pressed="interfaceStyle === 'reader'"
-              @click="setInterfaceStyle('reader')"
+              :class="{ active: interfaceStyle === 'light' }"
+              :aria-pressed="interfaceStyle === 'light'"
+              @click="setInterfaceStyle('light')"
             >
-              Reader
+              Light
             </button>
           </div>
           <AccountMenu
@@ -145,6 +145,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import type { ComponentPublicInstance } from "vue";
 import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { Terminal } from "@xterm/xterm";
+import type { ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
@@ -177,7 +178,23 @@ import type {
   UserRole
 } from "./client-types";
 
-type InterfaceStyle = "dark" | "reader";
+type InterfaceStyle = "dark" | "light";
+
+const terminalThemes: Record<InterfaceStyle, ITheme> = {
+  dark: {
+    background: "#0b0f14",
+    foreground: "#eef2f7",
+    cursor: "#4fb8ff",
+    selectionBackground: "#2f5d7c"
+  },
+  light: {
+    background: "#fbfaf6",
+    foreground: "#1f2328",
+    cursor: "#0969da",
+    selectionBackground: "#b6d7ff",
+    selectionForeground: "#1f2328"
+  }
+};
 
 const route = useRoute();
 const router = useRouter();
@@ -305,7 +322,7 @@ function isSlotId(value: string | null): value is SessionSlotId {
 }
 
 function isInterfaceStyle(value: string | null): value is InterfaceStyle {
-  return value === "dark" || value === "reader";
+  return value === "dark" || value === "light";
 }
 
 function readStoredInterfaceStyle(): InterfaceStyle {
@@ -316,6 +333,12 @@ function readStoredInterfaceStyle(): InterfaceStyle {
 function setInterfaceStyle(style: InterfaceStyle): void {
   interfaceStyle.value = style;
   localStorage.setItem("tycho-interface-style", style);
+}
+
+function applyTerminalTheme(style: InterfaceStyle): void {
+  for (const record of terminals.values()) {
+    record.term.options.theme = { ...terminalThemes[style] };
+  }
 }
 
 function readStoredLayoutMode(): SessionLayoutMode {
@@ -932,12 +955,7 @@ function mountTerminal(entry: TerminalEntry, host: HTMLElement): void {
     fontFamily: '"SFMono-Regular", Menlo, Consolas, monospace',
     fontSize: 13,
     lineHeight: 1.18,
-    theme: {
-      background: "#0b0f14",
-      foreground: "#eef2f7",
-      cursor: "#4fb8ff",
-      selectionBackground: "#2f5d7c"
-    }
+    theme: { ...terminalThemes[interfaceStyle.value] }
   });
   const fitAddon = new FitAddon();
   term.loadAddon(fitAddon);
@@ -1022,6 +1040,10 @@ watch(layoutMode, () => {
 
 watch(activeSlotId, () => {
   persistSlotState();
+});
+
+watch(interfaceStyle, (style) => {
+  applyTerminalTheme(style);
 });
 
 watch(

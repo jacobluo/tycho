@@ -242,18 +242,18 @@ test("workspace interactions: account menu closes when clicking outside", async 
   await expect(page.getByRole("menuitem", { name: "Log Out" })).toHaveCount(0);
 });
 
-test("interface style switch: toggles reader style and persists across reload", async ({ page }) => {
+test("interface style switch: toggles light style and persists across reload", async ({ page }) => {
   await login(page, "admin", "admin");
 
   const styleGroup = page.getByRole("group", { name: "Interface style" });
-  await styleGroup.getByRole("button", { name: "Reader" }).click();
-  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "reader");
+  await styleGroup.getByRole("button", { name: "Light" }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "light");
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("tycho-interface-style")))
-    .toBe("reader");
+    .toBe("light");
 
   await page.reload();
-  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "reader");
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "light");
   await styleGroup.getByRole("button", { name: "Dark" }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "dark");
 });

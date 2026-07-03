@@ -1300,7 +1300,7 @@ button.danger:hover {
   overflow-wrap: anywhere;
 }
 
-.app-shell[data-interface-style="reader"] {
+.app-shell[data-interface-style="light"] {
   color-scheme: light;
   --bg: #f7f5ef;
   --sidebar: rgba(210, 207, 208, 0.82);
@@ -1318,187 +1318,193 @@ button.danger:hover {
   color: var(--text);
 }
 
-.app-shell[data-interface-style="reader"] .app-topbar {
+.app-shell[data-interface-style="light"] .app-topbar {
   background: rgba(250, 249, 244, 0.9);
   border-bottom-color: rgba(222, 219, 211, 0.78);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
-.app-shell[data-interface-style="reader"] .brand-row h1,
-.app-shell[data-interface-style="reader"] .workspace-header h2,
-.app-shell[data-interface-style="reader"] .sidebar h1 {
+.app-shell[data-interface-style="light"] .brand-row h1,
+.app-shell[data-interface-style="light"] .workspace-header h2,
+.app-shell[data-interface-style="light"] .sidebar h1 {
   color: #25231f;
   font-weight: 750;
 }
 
-.app-shell[data-interface-style="reader"] .workspace-layout,
-.app-shell[data-interface-style="reader"] .workspace,
-.app-shell[data-interface-style="reader"] .management-shell,
-.app-shell[data-interface-style="reader"] .admin-shell {
+.app-shell[data-interface-style="light"] .workspace-layout,
+.app-shell[data-interface-style="light"] .workspace,
+.app-shell[data-interface-style="light"] .management-shell,
+.app-shell[data-interface-style="light"] .admin-shell {
   background: var(--bg);
 }
 
-.app-shell[data-interface-style="reader"] .sidebar,
-.app-shell[data-interface-style="reader"] .workspace-sidebar,
-.app-shell[data-interface-style="reader"] .admin-sidebar {
+.app-shell[data-interface-style="light"] .sidebar,
+.app-shell[data-interface-style="light"] .workspace-sidebar,
+.app-shell[data-interface-style="light"] .admin-sidebar {
   background: var(--sidebar);
   border-color: rgba(196, 192, 193, 0.84);
   box-shadow: inset -1px 0 rgba(255, 255, 255, 0.35);
 }
 
-.app-shell[data-interface-style="reader"] .workspace-header {
+.app-shell[data-interface-style="light"] .workspace-header {
   background: rgba(247, 245, 239, 0.82);
   border-bottom-color: var(--line);
 }
 
-.app-shell[data-interface-style="reader"] input,
-.app-shell[data-interface-style="reader"] select,
-.app-shell[data-interface-style="reader"] textarea,
-.app-shell[data-interface-style="reader"] .project-select {
+.app-shell[data-interface-style="light"] input,
+.app-shell[data-interface-style="light"] select,
+.app-shell[data-interface-style="light"] textarea,
+.app-shell[data-interface-style="light"] .project-select {
   background: #fdfcf8;
   border-color: #d8d4cb;
   color: var(--text);
 }
 
-.app-shell[data-interface-style="reader"] input:focus,
-.app-shell[data-interface-style="reader"] select:focus,
-.app-shell[data-interface-style="reader"] textarea:focus {
+.app-shell[data-interface-style="light"] input:focus,
+.app-shell[data-interface-style="light"] select:focus,
+.app-shell[data-interface-style="light"] textarea:focus {
   border-color: #7d9e85;
   box-shadow: 0 0 0 3px rgba(35, 200, 107, 0.12);
 }
 
-.app-shell[data-interface-style="reader"] button,
-.app-shell[data-interface-style="reader"] .button-link {
+.app-shell[data-interface-style="light"] button,
+.app-shell[data-interface-style="light"] .button-link {
   background: #efede7;
   border-color: #d8d4cb;
   color: var(--text);
 }
 
-.app-shell[data-interface-style="reader"] button:hover,
-.app-shell[data-interface-style="reader"] .button-link:hover {
+.app-shell[data-interface-style="light"] button:hover,
+.app-shell[data-interface-style="light"] .button-link:hover {
   border-color: #a9a49a;
 }
 
-.app-shell[data-interface-style="reader"] .style-switcher,
-.app-shell[data-interface-style="reader"] .layout-switcher {
+.app-shell[data-interface-style="light"] .style-switcher,
+.app-shell[data-interface-style="light"] .layout-switcher {
   background: rgba(235, 233, 226, 0.76);
   border-color: #d6d2ca;
 }
 
-.app-shell[data-interface-style="reader"] .style-switcher button,
-.app-shell[data-interface-style="reader"] .layout-switcher button,
-.app-shell[data-interface-style="reader"] .account-menu button {
+.app-shell[data-interface-style="light"] .style-switcher button,
+.app-shell[data-interface-style="light"] .layout-switcher button,
+.app-shell[data-interface-style="light"] .account-menu button {
   background: transparent;
   border-color: transparent;
   color: var(--muted);
 }
 
-.app-shell[data-interface-style="reader"] .style-switcher button.active,
-.app-shell[data-interface-style="reader"] .layout-switcher button.active {
+.app-shell[data-interface-style="light"] .style-switcher button.active,
+.app-shell[data-interface-style="light"] .layout-switcher button.active {
   background: #fbfaf6;
   border-color: #d7d3cc;
   box-shadow: 0 1px 2px rgba(58, 55, 49, 0.08);
   color: var(--text);
 }
 
-.app-shell[data-interface-style="reader"] .status.connected {
+.app-shell[data-interface-style="light"] .status.connected {
   color: var(--accent);
 }
 
-.app-shell[data-interface-style="reader"] .agent-button,
-.app-shell[data-interface-style="reader"] .session-item,
-.app-shell[data-interface-style="reader"] .admin-card,
-.app-shell[data-interface-style="reader"] .admin-toolbar,
-.app-shell[data-interface-style="reader"] .admin-table,
-.app-shell[data-interface-style="reader"] .modal-panel,
-.app-shell[data-interface-style="reader"] .user-card,
-.app-shell[data-interface-style="reader"] .assignment-list,
-.app-shell[data-interface-style="reader"] .directory-path-bar,
-.app-shell[data-interface-style="reader"] .directory-list,
-.app-shell[data-interface-style="reader"] .admin-drawer {
+.app-shell[data-interface-style="light"] .agent-button,
+.app-shell[data-interface-style="light"] .session-item,
+.app-shell[data-interface-style="light"] .admin-card,
+.app-shell[data-interface-style="light"] .admin-toolbar,
+.app-shell[data-interface-style="light"] .admin-table,
+.app-shell[data-interface-style="light"] .modal-panel,
+.app-shell[data-interface-style="light"] .user-card,
+.app-shell[data-interface-style="light"] .assignment-list,
+.app-shell[data-interface-style="light"] .directory-path-bar,
+.app-shell[data-interface-style="light"] .directory-list,
+.app-shell[data-interface-style="light"] .admin-drawer {
   background: rgba(251, 250, 246, 0.86);
   border-color: var(--line);
 }
 
-.app-shell[data-interface-style="reader"] .session-item {
+.app-shell[data-interface-style="light"] .session-item {
   border-color: rgba(210, 205, 198, 0.74);
   border-radius: 8px;
 }
 
-.app-shell[data-interface-style="reader"] .session-item.active {
+.app-shell[data-interface-style="light"] .session-item.active {
   background: rgba(200, 197, 196, 0.58);
   border-color: rgba(180, 176, 173, 0.75);
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.app-shell[data-interface-style="reader"] .session-item small,
-.app-shell[data-interface-style="reader"] .path-cell,
-.app-shell[data-interface-style="reader"] .project-description,
-.app-shell[data-interface-style="reader"] .confirm-dialog-message,
-.app-shell[data-interface-style="reader"] .directory-path-bar code {
+.app-shell[data-interface-style="light"] .session-item small,
+.app-shell[data-interface-style="light"] .path-cell,
+.app-shell[data-interface-style="light"] .project-description,
+.app-shell[data-interface-style="light"] .confirm-dialog-message,
+.app-shell[data-interface-style="light"] .directory-path-bar code {
   color: #605c56;
 }
 
-.app-shell[data-interface-style="reader"] .account-role-badge {
+.app-shell[data-interface-style="light"] .account-role-badge {
   background: #e7f6eb;
   border-color: #c9e8d2;
   color: #1f6f49;
 }
 
-.app-shell[data-interface-style="reader"] .account-menu {
+.app-shell[data-interface-style="light"] .account-menu {
   background: #fbfaf6;
   border-color: var(--line);
   box-shadow: 0 18px 34px rgba(83, 79, 70, 0.18);
 }
 
-.app-shell[data-interface-style="reader"] .account-menu button:hover,
-.app-shell[data-interface-style="reader"] .directory-row-main:hover,
-.app-shell[data-interface-style="reader"] .admin-sidebar a:hover,
-.app-shell[data-interface-style="reader"] .admin-sidebar a.router-link-active {
+.app-shell[data-interface-style="light"] .account-menu button:hover,
+.app-shell[data-interface-style="light"] .directory-row-main:hover,
+.app-shell[data-interface-style="light"] .admin-sidebar a:hover,
+.app-shell[data-interface-style="light"] .admin-sidebar a.router-link-active {
   background: var(--panel-strong);
   border-color: #d8d4cb;
   color: var(--text);
 }
 
-.app-shell[data-interface-style="reader"] .modal-backdrop {
+.app-shell[data-interface-style="light"] .modal-backdrop {
   background: rgba(51, 48, 43, 0.28);
 }
 
-.app-shell[data-interface-style="reader"] .terminal-grid {
+.app-shell[data-interface-style="light"] .terminal-grid {
   background:
     repeating-linear-gradient(90deg, transparent 0 26px, rgba(222, 219, 211, 0.45) 26px 27px, transparent 27px 54px),
     var(--bg);
 }
 
-.app-shell[data-interface-style="reader"] .terminal-card {
+.app-shell[data-interface-style="light"] .terminal-card {
   background: #f0eee8;
   border-color: #d9d5cc;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(58, 55, 49, 0.08);
 }
 
-.app-shell[data-interface-style="reader"] .terminal-card.active {
+.app-shell[data-interface-style="light"] .terminal-card.active {
   border-color: #93b79b;
   box-shadow: 0 0 0 2px rgba(35, 200, 107, 0.14);
 }
 
-.app-shell[data-interface-style="reader"] .terminal-titlebar,
-.app-shell[data-interface-style="reader"] .admin-table th {
+.app-shell[data-interface-style="light"] .terminal-titlebar,
+.app-shell[data-interface-style="light"] .admin-table th {
   background: #ebe8e0;
   border-color: #d9d5cc;
 }
 
-.app-shell[data-interface-style="reader"] .terminal-host {
-  background: #0b0f14;
+.app-shell[data-interface-style="light"] .terminal-host {
+  background: #fbfaf6;
 }
 
-.app-shell[data-interface-style="reader"] .slot-empty-state {
+.app-shell[data-interface-style="light"] .terminal-host .xterm,
+.app-shell[data-interface-style="light"] .terminal-host .xterm-viewport,
+.app-shell[data-interface-style="light"] .terminal-host .xterm-screen {
+  background: #fbfaf6;
+}
+
+.app-shell[data-interface-style="light"] .slot-empty-state {
   background: #ebe8e0;
   color: var(--muted);
 }
 
-.app-shell[data-interface-style="reader"] .admin-table tr.selected td,
-.app-shell[data-interface-style="reader"] .directory-row.selected {
+.app-shell[data-interface-style="light"] .admin-table tr.selected td,
+.app-shell[data-interface-style="light"] .directory-row.selected {
   background: rgba(35, 200, 107, 0.08);
 }
 
