@@ -192,10 +192,10 @@ const terminalThemes: Record<InterfaceStyle, ITheme> = {
   },
   light: {
     background: "#fbfaf6",
-    foreground: "#1f2328",
-    cursor: "#0969da",
-    selectionBackground: "#b6d7ff",
-    selectionForeground: "#1f2328"
+    foreground: "#2d2b27",
+    cursor: "#b8860b",
+    selectionBackground: "#efd9a8",
+    selectionForeground: "#2d2b27"
   }
 };
 
