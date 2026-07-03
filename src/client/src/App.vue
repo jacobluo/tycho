@@ -23,14 +23,12 @@
         <span>{{ routeTitle }}</span>
       </div>
       <div class="topbar-controls">
-        <label v-if="isWorkspaceRoute" class="topbar-project-select">
-          <span>Project</span>
-          <select id="projectSelect" v-model="selectedProjectId" class="project-select" @change="persistSelectedProject">
-            <option v-for="project in config.projects" :key="project.id" :value="project.id">
-              {{ project.name }}
-            </option>
-          </select>
-        </label>
+        <ProjectSwitcher
+          v-if="isWorkspaceRoute"
+          v-model:selected-project-id="selectedProjectId"
+          :projects="config.projects"
+          @change="persistSelectedProject"
+        />
         <div class="header-actions">
           <RouterLink v-if="!isWorkspaceRoute" class="button-link" to="/">Workspace</RouterLink>
           <div class="style-switcher" role="group" aria-label="Interface style">
@@ -153,6 +151,7 @@ import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
+import ProjectSwitcher from "./components/ProjectSwitcher.vue";
 import { resolveSelectedWindowId } from "../../shared/session-selection";
 import {
   allSessionSlotIds,

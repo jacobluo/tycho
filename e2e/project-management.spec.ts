@@ -86,6 +86,16 @@ async function openAccountMenu(page: import("@playwright/test").Page): Promise<v
   await page.getByRole("button", { name: /.+ (管理员|普通用户)/ }).click();
 }
 
+async function selectWorkspaceProject(page: import("@playwright/test").Page, projectName: string): Promise<void> {
+  await page.getByRole("button", { name: /^Project / }).click();
+  await page.getByRole("option", { name: projectName, exact: true }).click();
+  await expect(page.getByRole("button", { name: new RegExp(`^Project ${projectName}$`) })).toBeVisible();
+}
+
+async function selectedWorkspaceProjectId(page: import("@playwright/test").Page): Promise<string> {
+  return (await page.locator("[data-project-switcher-trigger]").getAttribute("data-selected-project-id")) || "";
+}
+
 async function waitForWorkspaceConnection(page: import("@playwright/test").Page): Promise<void> {
   await expect(page.locator("#connectionStatus")).toHaveText("Connected");
 }
@@ -326,10 +336,30 @@ test("interface style switch: toggles light style and persists across reload", a
   await expect(page.locator(".app-shell")).toHaveAttribute("data-interface-style", "dark");
 });
 
+test("custom project switcher: changes projects without native select", async ({ page }) => {
+  const alphaPath = makeProjectDir();
+  const betaPath = makeProjectDir();
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "Switcher Alpha", alphaPath);
+  await addManagedProject(page, "Switcher Beta", betaPath);
+  await page.getByRole("link", { name: "Workspace" }).click();
+
+  await expect(page.locator("#projectSelect")).toHaveCount(0);
+  await selectWorkspaceProject(page, "Switcher Alpha");
+  await expect(page.locator("#projectPath")).toHaveText(alphaPath);
+
+  await selectWorkspaceProject(page, "Switcher Beta");
+  await expect(page.locator("#projectPath")).toHaveText(betaPath);
+  await expect(page.getByRole("listbox", { name: "Projects" })).toHaveCount(0);
+
+  await deleteManagedProjectsByName(page, ["Switcher Alpha", "Switcher Beta"]);
+});
+
 test("input reminder: marks sessions that are waiting for user input", async ({ page }) => {
   await installWebSocketMessageInjector(page);
   await login(page, "admin", "admin");
-  const selectedProjectId = await page.locator("#projectSelect").inputValue();
+  const selectedProjectId = await selectedWorkspaceProjectId(page);
   const selectedProjectPath = (await page.locator("#projectPath").textContent()) || "";
   await page.evaluate(({ projectId, projectPath }) => {
     window.__TYCHO_INJECT_WS_MESSAGE__?.({
@@ -632,25 +662,25 @@ test("project scoped sessions: switching projects filters session list and slots
   await addManagedProject(page, "Project Scope Beta", betaPath);
   await page.getByRole("link", { name: "Workspace" }).click();
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await selectWorkspaceProject(page, "Project Scope Alpha");
   await startNamedSession(page, "Alpha Session");
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await selectWorkspaceProject(page, "Project Scope Beta");
   await startNamedSession(page, "Beta Session");
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toHaveCount(0);
   await expect(visibleSessionCard(page, "Alpha Session")).toHaveCount(0);
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Alpha" });
+  await selectWorkspaceProject(page, "Project Scope Alpha");
   await expect(page.locator("#sessionList .session-item", { hasText: "Alpha Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Alpha Session")).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toHaveCount(0);
   await expect(visibleSessionCard(page, "Beta Session")).toHaveCount(0);
 
-  await page.locator("#projectSelect").selectOption({ label: "Project Scope Beta" });
+  await selectWorkspaceProject(page, "Project Scope Beta");
   await expect(page.locator("#sessionList .session-item", { hasText: "Beta Session" })).toBeVisible();
   await expect(visibleSessionCard(page, "Beta Session")).toBeVisible();
 
@@ -713,11 +743,11 @@ test("project scoped sessions: restored sessions without project metadata use cw
     { alphaPath, betaPath }
   );
 
-  await page.locator("#projectSelect").selectOption({ label: "Restored Scope Alpha" });
+  await selectWorkspaceProject(page, "Restored Scope Alpha");
   await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toHaveCount(0);
 
-  await page.locator("#projectSelect").selectOption({ label: "Restored Scope Beta" });
+  await selectWorkspaceProject(page, "Restored Scope Beta");
   await expect(page.locator("#sessionList .session-item", { hasText: "Restored Beta" })).toBeVisible();
   await expect(page.locator("#sessionList .session-item", { hasText: "Restored Alpha" })).toHaveCount(0);
 
@@ -805,7 +835,7 @@ test("admin assigns a project and ordinary user cannot manage projects", async (
   await logout(page);
   await login(page, "alice", "secret-secret");
 
-  await expect(page.locator("#projectSelect")).toHaveValue("assigned-project");
+  await expect.poll(() => selectedWorkspaceProjectId(page)).toBe("assigned-project");
   await expect(page.locator("#projectDescription")).toHaveText("Visible to assigned user");
   await openAccountMenu(page);
   await expect(page.getByRole("menuitem", { name: "Admin Management" })).toHaveCount(0);
