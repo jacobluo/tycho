@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 declare global {
   interface Window {
     __TYCHO_WS_MESSAGES__?: string[];
     __TYCHO_INJECT_WS_MESSAGE__?: (payload: unknown) => void;
+    __TYCHO_CLIPBOARD_WRITES__?: string[];
   }
 }
 
@@ -873,6 +874,132 @@ test("directory browser API is admin-only and root constrained", async ({ page }
     return response.status;
   });
   expect(userStatus).toBe(403);
+});
+
+test("project file API is scoped to assigned projects", async ({ page }) => {
+  const allowedPath = makeProjectDir();
+  const blockedPath = makeProjectDir();
+  const username = `file-user-${Date.now()}`;
+  const password = "file-password";
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "E2E Files Allowed", allowedPath);
+  await addManagedProject(page, "E2E Files Blocked", blockedPath);
+  const projectIds = await page.evaluate(async () => {
+    const response = await fetch("/api/config");
+    const config = (await response.json()) as { projects: Array<{ id: string; name: string }> };
+    return {
+      allowed: config.projects.find((project) => project.name === "E2E Files Allowed")?.id || "",
+      blocked: config.projects.find((project) => project.name === "E2E Files Blocked")?.id || ""
+    };
+  });
+
+  await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("New Username").fill(username);
+  await page.getByLabel("New Password").fill(password);
+  await page.getByRole("button", { name: "Save User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
+  const userRow = page.locator(`[data-user-row="${username}"]`);
+  await expect(userRow).toBeVisible();
+  await userRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("E2E Files Allowed").check();
+  await page.getByRole("button", { name: "Save Projects" }).click();
+  await expect(page.locator(".user-status-message")).toHaveText("Projects saved");
+
+  await logout(page);
+  await login(page, username, password);
+  const statuses = await page.evaluate(async ({ allowed, blocked }) => {
+    const allowedResponse = await fetch(`/api/projects/${encodeURIComponent(allowed)}/files`);
+    const blockedResponse = await fetch(`/api/projects/${encodeURIComponent(blocked)}/files`);
+    const traversalResponse = await fetch(`/api/projects/${encodeURIComponent(allowed)}/files?path=${encodeURIComponent("../")}`);
+    return {
+      allowed: allowedResponse.status,
+      blocked: blockedResponse.status,
+      traversal: traversalResponse.status
+    };
+  }, projectIds);
+
+  expect(statuses).toEqual({ allowed: 200, blocked: 403, traversal: 400 });
+
+  await logout(page);
+  await login(page, "admin", "admin");
+  await deleteManagedProjectsByName(page, ["E2E Files Allowed", "E2E Files Blocked"]);
+});
+
+test("opens project files drawer, filters, previews, and blocks sensitive preview", async ({ page }) => {
+  const projectPath = makeProjectDir();
+  mkdirSync(join(projectPath, "src"));
+  writeFileSync(join(projectPath, "src", "visible.txt"), "hello from project files");
+  writeFileSync(join(projectPath, "src", "hidden-note.md"), "not the selected file");
+  writeFileSync(join(projectPath, ".env.local"), "TOKEN=secret");
+
+  await page.addInitScript(() => {
+    window.__TYCHO_CLIPBOARD_WRITES__ = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          window.__TYCHO_CLIPBOARD_WRITES__?.push(String(value));
+        },
+        readText: async () => {
+          const writes = window.__TYCHO_CLIPBOARD_WRITES__ || [];
+          return writes[writes.length - 1] || "";
+        }
+      }
+    });
+  });
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "E2E Files Drawer", projectPath);
+  await page.goto("/");
+  await selectWorkspaceProject(page, "E2E Files Drawer");
+
+  await page.getByRole("button", { name: "Open project files" }).click();
+  const drawer = page.getByRole("dialog", { name: "Project files" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "Open src" }).click();
+  await drawer.getByLabel("Project file search").fill("visible");
+  await expect(drawer.getByRole("button", { name: /Preview visible.txt/ })).toBeVisible();
+  await expect(drawer.getByText("hidden-note.md")).toHaveCount(0);
+  await drawer.getByRole("button", { name: /Preview visible.txt/ }).click();
+  await expect(drawer.getByText("hello from project files")).toBeVisible();
+  await drawer.getByRole("button", { name: "Copy Content" }).click();
+  await expect(drawer.getByText("Content copied")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => window.__TYCHO_CLIPBOARD_WRITES__ || []))
+    .toEqual(["hello from project files"]);
+
+  await drawer.getByRole("button", { name: "Up" }).click();
+  await drawer.getByLabel("Project file search").fill(".env");
+  await drawer.getByRole("button", { name: /Preview .env.local/ }).click();
+  await expect(drawer.getByText("Sensitive file cannot be previewed")).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "Copy Content" })).toBeDisabled();
+  expect(await page.evaluate(() => window.__TYCHO_CLIPBOARD_WRITES__ || [])).toEqual(["hello from project files"]);
+
+  await deleteManagedProjectsByName(page, ["E2E Files Drawer"]);
+});
+
+test("switching project resets an open file drawer", async ({ page }) => {
+  const firstPath = makeProjectDir();
+  const secondPath = makeProjectDir();
+  writeFileSync(join(firstPath, "first.txt"), "first");
+  writeFileSync(join(secondPath, "second.txt"), "second");
+
+  await login(page, "admin", "admin");
+  await addManagedProject(page, "E2E First Files", firstPath);
+  await addManagedProject(page, "E2E Second Files", secondPath);
+  await page.goto("/");
+  await selectWorkspaceProject(page, "E2E First Files");
+  await page.getByRole("button", { name: "Open project files" }).click();
+  const drawer = page.getByRole("dialog", { name: "Project files" });
+  await expect(drawer.getByRole("button", { name: "Preview first.txt" })).toBeVisible();
+
+  await selectWorkspaceProject(page, "E2E Second Files");
+  await expect(drawer.getByRole("button", { name: "Preview second.txt" })).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "Preview first.txt" })).toHaveCount(0);
+
+  await deleteManagedProjectsByName(page, ["E2E First Files", "E2E Second Files"]);
 });
 
 test("admin assigns a project and ordinary user cannot manage projects", async ({ page }) => {

@@ -29,6 +29,16 @@
           :projects="config.projects"
           @change="persistSelectedProject"
         />
+        <button
+          v-if="isWorkspaceRoute"
+          class="icon-text-button"
+          type="button"
+          :disabled="!selectedProject"
+          aria-label="Open project files"
+          @click="openProjectFiles"
+        >
+          Files
+        </button>
         <div class="header-actions">
           <RouterLink v-if="!isWorkspaceRoute" class="button-link" to="/">Workspace</RouterLink>
           <div class="style-switcher" role="group" aria-label="Interface style">
@@ -113,6 +123,14 @@
       />
     </RouterView>
 
+    <ProjectFilesDrawer
+      :open="projectFilesOpen"
+      :project="selectedProject"
+      :width="projectFilesWidth"
+      @close="projectFilesOpen = false"
+      @update:width="setProjectFilesWidth"
+    />
+
     <ChangePasswordDialog
       :open="passwordDialogOpen"
       :busy="passwordFormBusy"
@@ -151,6 +169,7 @@ import AccountMenu from "./components/AccountMenu.vue";
 import ChangePasswordDialog from "./components/ChangePasswordDialog.vue";
 import ConfirmSessionCloseDialog from "./components/ConfirmSessionCloseDialog.vue";
 import CreateSessionDialog from "./components/CreateSessionDialog.vue";
+import ProjectFilesDrawer from "./components/ProjectFilesDrawer.vue";
 import ProjectSwitcher from "./components/ProjectSwitcher.vue";
 import { resolveSelectedWindowId } from "../../shared/session-selection";
 import {
@@ -228,6 +247,8 @@ const passwordDialogOpen = ref(false);
 const sessionDialogOpen = ref(false);
 const pendingSessionAgentId = ref<string | null>(null);
 const closeSessionDialogOpen = ref(false);
+const projectFilesOpen = ref(false);
+const projectFilesWidth = ref(readStoredProjectFilesWidth());
 const pendingCloseWindowId = ref<string | null>(null);
 const loginError = ref("");
 const projectFormStatus = ref("");
@@ -366,6 +387,11 @@ function readStoredLayoutMode(): SessionLayoutMode {
 function readStoredActiveSlotId(): SessionSlotId {
   const stored = localStorage.getItem("tycho-active-slot-id");
   return isSlotId(stored) ? stored : "slot-1";
+}
+
+function readStoredProjectFilesWidth(): number {
+  const stored = Number(localStorage.getItem("tycho-project-files-width"));
+  return Number.isFinite(stored) && stored > 0 ? stored : 560;
 }
 
 function readStoredSlotAssignments(): SlotAssignments {
@@ -632,6 +658,17 @@ function persistSelectedProject(): void {
     localStorage.setItem("tycho-project-id", selectedProjectId.value);
   }
   syncSlotAssignments();
+}
+
+function openProjectFiles(): void {
+  if (selectedProject.value) {
+    projectFilesOpen.value = true;
+  }
+}
+
+function setProjectFilesWidth(width: number): void {
+  projectFilesWidth.value = width;
+  localStorage.setItem("tycho-project-files-width", String(width));
 }
 
 function openManagementFromMenu(): void {

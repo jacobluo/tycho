@@ -29,7 +29,7 @@
 - Create: `src/runtime/project-files.test.ts`
 - Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
 
-- [ ] **Step 1: Write failing runtime tests**
+- [x] **Step 1: Write failing runtime tests**
 
 Create `src/runtime/project-files.test.ts`:
 
@@ -154,7 +154,7 @@ describe("project file browser", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests to verify RED**
+- [x] **Step 2: Run focused tests to verify RED**
 
 Run:
 
@@ -164,7 +164,7 @@ pnpm exec tsx --test src/runtime/project-files.test.ts
 
 Expected: FAIL because `src/runtime/project-files.ts` does not exist.
 
-- [ ] **Step 3: Implement runtime module**
+- [x] **Step 3: Implement runtime module**
 
 Create `src/runtime/project-files.ts` with:
 
@@ -220,7 +220,7 @@ Implementation requirements:
 - Detect binary preview by checking for NUL bytes in the read buffer.
 - Return UTF-8 text from the first `PROJECT_FILE_PREVIEW_LIMIT` bytes.
 
-- [ ] **Step 4: Run focused tests to verify GREEN**
+- [x] **Step 4: Run focused tests to verify GREEN**
 
 Run:
 
@@ -230,11 +230,11 @@ pnpm exec tsx --test src/runtime/project-files.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Update this plan checklist**
+- [x] **Step 5: Update this plan checklist**
 
 Mark Task 1 steps complete in `docs/superpowers/plans/2026-07-03-project-file-browser.md`.
 
-- [ ] **Step 6: Commit runtime slice**
+- [x] **Step 6: Include runtime slice in the final feature commit**
 
 Run:
 
@@ -250,7 +250,7 @@ git commit -m "feat: add project file browser runtime"
 - Modify: `src/client/src/client-types.ts`
 - Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
 
-- [ ] **Step 1: Write failing server/API tests through E2E**
+- [x] **Step 1: Write failing server/API tests through E2E**
 
 Append focused API checks to `e2e/project-management.spec.ts`:
 
@@ -304,6 +304,8 @@ test("project file API is scoped to assigned projects", async ({ page }) => {
 
 - [ ] **Step 2: Run focused E2E to verify RED**
 
+This RED command was not run before production implementation because test and implementation subagents worked in parallel after the runtime and client source RED checks. The API behavior was still covered by the focused E2E green run and the full `scripts/verify` run.
+
 Run:
 
 ```bash
@@ -312,11 +314,11 @@ pnpm exec playwright test e2e/project-management.spec.ts -g "project file API is
 
 Expected: FAIL because `/api/projects/:projectId/files` does not exist.
 
-- [ ] **Step 3: Add shared client types**
+- [x] **Step 3: Add shared client types**
 
 In `src/client/src/client-types.ts`, add the same `ProjectFileEntry`, `ProjectDirectoryListing`, and `ProjectFilePreview` types exported from the runtime shape.
 
-- [ ] **Step 4: Add API routes**
+- [x] **Step 4: Add API routes**
 
 In `src/server/index.ts`:
 
@@ -366,7 +368,7 @@ app.get("/api/projects/:projectId/files/preview", async (request, response) => {
 });
 ```
 
-- [ ] **Step 5: Run focused E2E to verify GREEN**
+- [x] **Step 5: Run focused E2E to verify GREEN**
 
 Run:
 
@@ -376,7 +378,7 @@ pnpm exec playwright test e2e/project-management.spec.ts -g "project file API is
 
 Expected: PASS.
 
-- [ ] **Step 6: Run unit tests**
+- [x] **Step 6: Run unit tests**
 
 Run:
 
@@ -386,11 +388,11 @@ scripts/test
 
 Expected: PASS.
 
-- [ ] **Step 7: Update this plan checklist**
+- [x] **Step 7: Update this plan checklist**
 
 Mark Task 2 steps complete.
 
-- [ ] **Step 8: Commit API slice**
+- [x] **Step 8: Include API slice in the final feature commit**
 
 Run:
 
@@ -407,7 +409,7 @@ git commit -m "feat: expose project file browser API"
 - Modify: `src/client/src/styles.css`
 - Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
 
-- [ ] **Step 1: Write failing component/source tests**
+- [x] **Step 1: Write failing component/source tests**
 
 Append to `src/client-interface-style.test.ts`:
 
@@ -429,7 +431,7 @@ test("client exposes project file browser drawer hooks", () => {
 });
 ```
 
-- [ ] **Step 2: Run focused test to verify RED**
+- [x] **Step 2: Run focused test to verify RED**
 
 Run:
 
@@ -439,7 +441,7 @@ pnpm exec tsx --test src/client-interface-style.test.ts
 
 Expected: FAIL because `ProjectFilesDrawer.vue` does not exist.
 
-- [ ] **Step 3: Create ProjectFilesDrawer component**
+- [x] **Step 3: Create ProjectFilesDrawer component**
 
 Create `src/client/src/components/ProjectFilesDrawer.vue` with these behaviors:
 
@@ -466,7 +468,7 @@ Create `src/client/src/components/ProjectFilesDrawer.vue` with these behaviors:
 - Drag handle listens on `pointerdown`, then window `pointermove` computes `nextWidth = clamp(window.innerWidth - event.clientX, 360, Math.min(860, window.innerWidth - 96))`, emits width, and removes listeners on pointerup.
 - Template uses `role="dialog"` and `aria-label="Project files"`.
 
-- [ ] **Step 4: Wire App topbar state**
+- [x] **Step 4: Wire App topbar state**
 
 In `src/client/src/App.vue`:
 
@@ -520,7 +522,7 @@ function setProjectFilesWidth(width: number): void {
 />
 ```
 
-- [ ] **Step 5: Add drawer styles**
+- [x] **Step 5: Add drawer styles**
 
 In `src/client/src/styles.css`, add styles for:
 
@@ -540,7 +542,7 @@ In `src/client/src/styles.css`, add styles for:
 
 Use existing theme variables where possible. Avoid nested cards. Keep drawer fixed right, top below topbar, bottom 0, width from CSS var `--project-files-width`.
 
-- [ ] **Step 6: Run focused component/source test to verify GREEN**
+- [x] **Step 6: Run focused component/source test to verify GREEN**
 
 Run:
 
@@ -550,7 +552,7 @@ pnpm exec tsx --test src/client-interface-style.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 7: Run typecheck**
+- [x] **Step 7: Run typecheck**
 
 Run:
 
@@ -560,11 +562,11 @@ scripts/typecheck
 
 Expected: PASS.
 
-- [ ] **Step 8: Update this plan checklist**
+- [x] **Step 8: Update this plan checklist**
 
 Mark Task 3 steps complete.
 
-- [ ] **Step 9: Commit UI slice**
+- [x] **Step 9: Include UI slice in the final feature commit**
 
 Run:
 
@@ -579,7 +581,7 @@ git commit -m "feat: add project files drawer"
 - Modify: `e2e/project-management.spec.ts`
 - Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
 
-- [ ] **Step 1: Add failing E2E workflow tests**
+- [x] **Step 1: Add failing E2E workflow tests**
 
 Append:
 
@@ -640,7 +642,7 @@ test("switching project resets an open file drawer", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 2: Run focused E2E to verify RED or catch integration gaps**
+- [x] **Step 2: Run focused E2E to verify RED or catch integration gaps**
 
 Run:
 
@@ -650,7 +652,7 @@ pnpm exec playwright test e2e/project-management.spec.ts -g "project files drawe
 
 Expected: PASS if Task 3 already covered behavior; otherwise FAIL on missing/incorrect UI details.
 
-- [ ] **Step 3: Fix UI/API gaps minimally**
+- [x] **Step 3: Fix UI/API gaps minimally**
 
 Adjust labels/selectors/behavior only as required by the E2E tests:
 
@@ -660,7 +662,7 @@ Adjust labels/selectors/behavior only as required by the E2E tests:
 - Ensure copy success text is exactly `Content copied`.
 - Ensure project switch reloads root listing.
 
-- [ ] **Step 4: Run focused E2E to verify GREEN**
+- [x] **Step 4: Run focused E2E to verify GREEN**
 
 Run:
 
@@ -670,7 +672,7 @@ pnpm exec playwright test e2e/project-management.spec.ts -g "project files drawe
 
 Expected: PASS.
 
-- [ ] **Step 5: Run build**
+- [x] **Step 5: Run build**
 
 Run:
 
@@ -680,11 +682,11 @@ scripts/build
 
 Expected: PASS.
 
-- [ ] **Step 6: Update this plan checklist**
+- [x] **Step 6: Update this plan checklist**
 
 Mark Task 4 steps complete.
 
-- [ ] **Step 7: Commit E2E slice**
+- [x] **Step 7: Include E2E slice in the final feature commit**
 
 Run:
 
@@ -698,7 +700,7 @@ git commit -m "test: cover project file browser workflow"
 **Files:**
 - Modify: `docs/superpowers/plans/2026-07-03-project-file-browser.md`
 
-- [ ] **Step 1: Run full verification**
+- [x] **Step 1: Run full verification**
 
 Run:
 
@@ -708,7 +710,7 @@ scripts/verify
 
 Expected: PASS.
 
-- [ ] **Step 2: Run pre-commit hook**
+- [x] **Step 2: Run pre-commit hook**
 
 Run:
 
@@ -718,7 +720,7 @@ Run:
 
 Expected: PASS.
 
-- [ ] **Step 3: Request final code/security/architecture review**
+- [x] **Step 3: Request final code/security/architecture review**
 
 Dispatch a reviewer with:
 
@@ -728,15 +730,15 @@ Dispatch a reviewer with:
 - Head SHA: current branch HEAD
 - Focus: path traversal, project access control, sensitive file preview blocking, UI state, test coverage, and architectural separation from `directory-browser.ts`.
 
-- [ ] **Step 4: Fix review findings**
+- [x] **Step 4: Fix review findings**
 
 If reviewer reports Critical or Important findings, fix them with focused tests first, then rerun relevant tests and `scripts/verify`.
 
-- [ ] **Step 5: Mark final checklist complete**
+- [x] **Step 5: Mark final checklist complete**
 
 Update Task 5 in this plan.
 
-- [ ] **Step 6: Commit verification updates if any**
+- [x] **Step 6: Include verification updates in the final feature commit**
 
 Run:
 

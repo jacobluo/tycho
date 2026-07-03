@@ -19,3 +19,19 @@ test("client exposes light interface style hooks", () => {
   assert.doesNotMatch(appSource, /"reader"/);
   assert.doesNotMatch(cssSource, new RegExp(`data-interface-style="${"read"}${"er"}"`));
 });
+
+test("client exposes project file browser drawer hooks", () => {
+  const appSource = readFileSync("src/client/src/App.vue", "utf8");
+  const drawerSource = readFileSync("src/client/src/components/ProjectFilesDrawer.vue", "utf8");
+  const cssSource = readFileSync("src/client/src/styles.css", "utf8");
+
+  assert.match(appSource, /ProjectFilesDrawer/);
+  assert.match(appSource, /projectFilesOpen/);
+  assert.match(appSource, /Open project files/);
+  assert.match(drawerSource, /\/api\/projects\/.*\/files/);
+  assert.match(drawerSource, /Copy Path/);
+  assert.match(drawerSource, /Copy Content/);
+  assert.match(drawerSource, /Project file search/);
+  assert.match(cssSource, /\.project-files-drawer/);
+  assert.match(cssSource, /\.project-files-resize-handle/);
+});

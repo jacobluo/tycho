@@ -10,6 +10,33 @@ export type DirectoryBrowserResponse = {
   parentPath: string | null;
   entries: DirectoryBrowserEntry[];
 };
+export type ProjectFileEntry = {
+  name: string;
+  relativePath: string;
+  type: "directory" | "file";
+  size: number | null;
+  modifiedAt: string | null;
+  sensitive: boolean;
+};
+export type ProjectDirectoryListing = {
+  projectId: string;
+  projectName: string;
+  currentPath: string;
+  parentPath: string | null;
+  entries: ProjectFileEntry[];
+};
+export type ProjectFilePreview = {
+  projectId: string;
+  relativePath: string;
+  name: string;
+  size: number;
+  modifiedAt: string | null;
+  sensitive: boolean;
+  previewable: boolean;
+  truncated: boolean;
+  content: string;
+  reason?: "sensitive" | "directory" | "binary" | "too-large" | "not-found";
+};
 export type UserRole = "admin" | "user";
 export type UserStatus = "active" | "disabled" | "deleted";
 export type PublicUser = {
