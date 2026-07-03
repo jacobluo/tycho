@@ -927,6 +927,24 @@ test("project file API is scoped to assigned projects", async ({ page }) => {
   await deleteManagedProjectsByName(page, ["E2E Files Allowed", "E2E Files Blocked"]);
 });
 
+test("unknown API routes return JSON 404 instead of the SPA shell", async ({ page }) => {
+  await login(page, "admin", "admin");
+
+  const result = await page.evaluate(async () => {
+    const response = await fetch("/api/projects/tycho/not-a-real-file-route");
+    return {
+      status: response.status,
+      contentType: response.headers.get("content-type") || "",
+      body: await response.text()
+    };
+  });
+
+  expect(result.status).toBe(404);
+  expect(result.contentType).toContain("application/json");
+  expect(result.body).toContain("API route not found");
+  expect(result.body).not.toContain("<!doctype html>");
+});
+
 test("opens project files drawer, filters, previews, and blocks sensitive preview", async ({ page }) => {
   const projectPath = makeProjectDir();
   mkdirSync(join(projectPath, "src"));

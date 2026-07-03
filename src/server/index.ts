@@ -593,6 +593,10 @@ app.delete("/api/windows/:windowId", async (request, response) => {
   response.status(202).json({ ok: true });
 });
 
+app.use("/api", (_request, response) => {
+  response.status(404).json({ error: "API route not found" });
+});
+
 if (process.env.NODE_ENV === "development") {
   const { createServer } = await import("vite");
   const vite = await createServer({
