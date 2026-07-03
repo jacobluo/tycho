@@ -34,4 +34,7 @@ test("client exposes project file browser drawer hooks", () => {
   assert.match(drawerSource, /Project file search/);
   assert.match(cssSource, /\.project-files-drawer/);
   assert.match(cssSource, /\.project-files-resize-handle/);
+  assert.match(cssSource, /\.project-files-backdrop\s*{\s*inset:\s*0;/s);
+  assert.match(cssSource, /\.project-files-drawer\s*{[^}]*padding-top:\s*50px;/s);
+  assert.doesNotMatch(cssSource, /\.project-files-backdrop\s*{\s*inset:\s*50px 0 0 0;/s);
 });
