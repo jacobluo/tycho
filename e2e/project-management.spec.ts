@@ -68,7 +68,12 @@ async function installWebSocketMessageInjector(page: import("@playwright/test").
   });
 }
 
-async function login(page: import("@playwright/test").Page, username: string, password: string): Promise<void> {
+async function login(
+  page: import("@playwright/test").Page,
+  username: string,
+  password: string,
+  options: { clearSessions?: boolean } = {}
+): Promise<void> {
   await page.goto("/");
   await page.evaluate(() => {
     localStorage.removeItem("tycho-layout-mode");
@@ -79,7 +84,9 @@ async function login(page: import("@playwright/test").Page, username: string, pa
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log In" }).click();
   await expect(page.getByRole("button", { name: `${username} ${roleLabel(username)}` })).toBeVisible();
-  await closeAllSessions(page);
+  if (options.clearSessions !== false) {
+    await closeAllSessions(page);
+  }
 }
 
 async function openAccountMenu(page: import("@playwright/test").Page): Promise<void> {
@@ -216,6 +223,16 @@ async function openUserManagement(page: import("@playwright/test").Page): Promis
   await expect(page.getByRole("button", { name: "Edit User" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Delete Selected" })).toBeDisabled();
   await expect(page.locator("#userFormStatus")).toHaveCount(0);
+}
+
+async function openSessionManagement(page: import("@playwright/test").Page): Promise<void> {
+  await openAccountMenu(page);
+  await page.getByRole("menuitem", { name: "Admin Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/projects$/);
+  await page.getByRole("link", { name: "Session Management" }).click();
+  await expect(page).toHaveURL(/\/admin\/sessions$/);
+  await expect(page.getByRole("heading", { name: "Session Management" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Sessions" })).toBeVisible();
 }
 
 test.afterEach(() => {
@@ -444,6 +461,59 @@ test("workspace interactions: creating a session asks for a name and sends it", 
     )
     .toBe(true);
   await closeSession(page, "Focused Build");
+});
+
+test("user session isolation: admin manages ordinary user sessions from backend only", async ({ page }) => {
+  const username = `session-user-${Date.now()}`;
+  const password = "session-password";
+  const sessionName = "User Owned Session";
+
+  await login(page, "admin", "admin");
+  const projectName = (await page.locator(".project-switcher-name").textContent()) || "tycho";
+
+  await openUserManagement(page);
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("New Username").fill(username);
+  await page.getByLabel("New Password").fill(password);
+  await page.getByLabel("New Role").selectOption("user");
+  await page.getByRole("button", { name: "Save User" }).click();
+  await expect(page.locator("#userFormStatus")).toHaveText("User created");
+
+  const userRow = page.locator(`[data-user-row="${username}"]`);
+  await expect(userRow).toBeVisible();
+  await userRow.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel(projectName).check();
+  await page.getByRole("button", { name: "Save Projects" }).click();
+  await expect(page.locator(".user-status-message")).toHaveText("Projects saved");
+
+  await logout(page);
+  await login(page, username, password);
+  await startNamedSession(page, sessionName);
+  await expect(page.locator("#sessionList .session-item", { hasText: sessionName })).toBeVisible();
+  await expect(visibleSessionCard(page, sessionName)).toBeVisible();
+
+  await logout(page);
+  await login(page, "admin", "admin", { clearSessions: false });
+
+  await expect(page.locator("#sessionList .session-item", { hasText: sessionName })).toHaveCount(0);
+  await expect(visibleSessionCard(page, sessionName)).toHaveCount(0);
+
+  await openSessionManagement(page);
+  const sessionRow = page.getByRole("row", { name: new RegExp(`${sessionName}.*${username}.*CodeBuddy`) });
+  await expect(sessionRow).toBeVisible();
+  await expect(sessionRow.getByText(/\d{4}-\d{2}-\d{2}/)).toBeVisible();
+
+  await sessionRow.getByRole("button", { name: "View" }).click();
+  const drawer = page.getByRole("complementary", { name: "Session details" });
+  await expect(drawer.getByRole("heading", { name: "Session Details" })).toBeVisible();
+  await expect(drawer.getByText(sessionName)).toBeVisible();
+  await expect(drawer.getByText(username)).toBeVisible();
+
+  await drawer.getByRole("button", { name: "Close" }).click();
+  await expect(drawer).toHaveCount(0);
+  await sessionRow.getByRole("button", { name: "Delete" }).click();
+  await expect(page.locator("#sessionAdminStatus")).toHaveText("Session deleted");
+  await expect(sessionRow).toHaveCount(0);
 });
 
 test("workspace interactions: focusing a session does not scroll the terminal grid", async ({ page }) => {

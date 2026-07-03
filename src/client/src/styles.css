@@ -1346,6 +1346,14 @@ button.danger:hover {
   background: rgba(79, 184, 255, 0.08);
 }
 
+.table-muted {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
 .selection-cell {
   width: 74px;
 }
@@ -1430,6 +1438,23 @@ button.danger:hover {
   line-height: 1.4;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.session-detail-drawer {
+  max-width: min(520px, calc(100vw - 32px));
+}
+
+.session-buffer {
+  background: #0d1117;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  margin: 0;
+  max-height: 380px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
 }
 
 .app-shell[data-interface-style="light"] {
@@ -1675,6 +1700,12 @@ button.danger:hover {
 .app-shell[data-interface-style="light"] .slot-empty-state {
   background: #ebe8e0;
   color: var(--muted);
+}
+
+.app-shell[data-interface-style="light"] .session-buffer {
+  background: #fbfaf6;
+  border-color: #d8d4cb;
+  color: var(--text);
 }
 
 .app-shell[data-interface-style="light"] .admin-table tr.selected td,

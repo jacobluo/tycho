@@ -23,6 +23,22 @@ export type PublicUser = {
   projectIds: string[];
 };
 export type PublicRuntimeConfig = { agents: AgentConfig[]; projects: ProjectConfig[]; defaultProjectId: string; webPort: number };
+export type AdminSessionSummary = {
+  windowId: string;
+  paneId: string;
+  name: string;
+  creator: string;
+  creatorId: string | null;
+  createdAt: string | null;
+  agent: string;
+  agentId: string | null;
+  projectName: string;
+  projectPath: string;
+  status: "running" | "stopped" | "error";
+};
+export type AdminSessionDetail = AdminSessionSummary & {
+  buffer: string;
+};
 export type AgentEntry = AgentConfig & {
   autostart: boolean;
   restart_on_exit: boolean;

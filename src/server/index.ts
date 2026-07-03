@@ -40,12 +40,13 @@ import {
 import { listDirectories } from "../runtime/directory-browser.js";
 import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
 import { clientDistDir, projectRoot } from "../shared/paths.js";
-import { TuimuxClient, type TuimuxMessage } from "../tuimux/client.js";
+import { TuimuxClient, type TuimuxMessage, type TuimuxPane, type TuimuxWindow } from "../tuimux/client.js";
 import { createShutdownController } from "./shutdown.js";
 
 let runtime: RuntimeConfig = readRuntimeConfig();
 const tuimux = new TuimuxClient();
 const wsTokens = new WeakMap<WebSocket, string>();
+const sessionMetadataByEntryId = new Map<string, SessionMetadata>();
 
 await bootstrapAdminUser();
 await tuimux.start();
@@ -124,15 +125,59 @@ function publicConfigForUser(user: PublicUser) {
   return getPublicRuntimeConfig(runtime, filterProjectsForUser(runtime.projects, user));
 }
 
-function paneVisibleToUser(user: PublicUser, pane: { entry: { env?: Record<string, string> } }): boolean {
-  return user.role === "admin" || pane.entry.env?.REMOTE_TUI_USER_ID === user.id;
+type AdminSessionSummary = {
+  windowId: string;
+  paneId: string;
+  name: string;
+  creator: string;
+  creatorId: string | null;
+  createdAt: string | null;
+  agent: string;
+  agentId: string | null;
+  projectName: string;
+  projectPath: string;
+  status: TuimuxPane["status"];
+};
+
+type AdminSessionDetail = AdminSessionSummary & {
+  buffer: string;
+};
+
+type SessionMetadata = {
+  creator: string;
+  creatorId: string;
+  createdAt: string;
+  agent: string;
+  agentId: string;
+  projectName: string;
+  projectPath: string;
+};
+
+function recordSessionMetadata(entryId: string, metadata: SessionMetadata): void {
+  sessionMetadataByEntryId.set(entryId, metadata);
+}
+
+function metadataForPane(pane: TuimuxPane): SessionMetadata | undefined {
+  return sessionMetadataByEntryId.get(pane.entry.id);
+}
+
+function paneOwnerId(pane: { entry: { env?: Record<string, string>; sessionUserId?: string } }): string | undefined {
+  const entryId = "id" in pane.entry && typeof pane.entry.id === "string" ? pane.entry.id : "";
+  return (entryId ? sessionMetadataByEntryId.get(entryId)?.creatorId : undefined)
+    || pane.entry.sessionUserId
+    || pane.entry.env?.REMOTE_TUI_USER_ID;
+}
+
+function paneVisibleToUser(user: PublicUser, pane: { entry: { env?: Record<string, string>; sessionUserId?: string } }): boolean {
+  const ownerId = paneOwnerId(pane);
+  if (ownerId) {
+    return ownerId === user.id;
+  }
+  return user.role === "admin";
 }
 
 function filterStateForUser(user: PublicUser) {
   const state = tuimux.getState();
-  if (user.role === "admin") {
-    return toPublicTuimuxState(state);
-  }
   const panes = state.panes.filter((pane) => paneVisibleToUser(user, pane));
   const paneIds = new Set(panes.map((pane) => pane.paneId));
   const windows = state.windows.filter((window) => paneIds.has(window.activePaneId));
@@ -149,9 +194,6 @@ function filterStateForUser(user: PublicUser) {
 
 function internalWindowVisibleToUser(user: PublicUser, windowId: string): boolean {
   const state = tuimux.getState();
-  if (user.role === "admin") {
-    return state.windows.some((window) => window.id === windowId);
-  }
   const visiblePaneIds = new Set(
     state.panes.filter((pane) => paneVisibleToUser(user, pane)).map((pane) => pane.paneId)
   );
@@ -165,6 +207,41 @@ function internalPaneVisibleById(user: PublicUser, paneId: string): boolean {
 
 async function userForSocket(socket: WebSocket): Promise<PublicUser | null> {
   return getSessionUser(wsTokens.get(socket));
+}
+
+function agentNameForPane(pane: TuimuxPane): string {
+  const envAgentName = metadataForPane(pane)?.agent || pane.entry.sessionAgentName || pane.entry.env?.REMOTE_TUI_AGENT_NAME;
+  if (envAgentName) {
+    return envAgentName;
+  }
+  const matchingAgent = runtime.agents.find((agent) => agent.command === pane.entry.command || pane.entry.id.startsWith(`${agent.id}-`));
+  return matchingAgent?.name || pane.entry.command;
+}
+
+function adminSessionSummary(window: TuimuxWindow, pane: TuimuxPane): AdminSessionSummary {
+  const metadata = metadataForPane(pane);
+  return {
+    windowId: window.id,
+    paneId: pane.paneId,
+    name: window.title || pane.entry.name,
+    creator: metadata?.creator || pane.entry.sessionUsername || pane.entry.env?.REMOTE_TUI_USERNAME || "Legacy session",
+    creatorId: metadata?.creatorId || pane.entry.sessionUserId || pane.entry.env?.REMOTE_TUI_USER_ID || null,
+    createdAt: metadata?.createdAt || pane.entry.sessionCreatedAt || pane.entry.env?.REMOTE_TUI_CREATED_AT || null,
+    agent: agentNameForPane(pane),
+    agentId: metadata?.agentId || pane.entry.sessionAgentId || pane.entry.env?.REMOTE_TUI_AGENT_ID || null,
+    projectName: metadata?.projectName || pane.entry.projectName || pane.entry.env?.REMOTE_TUI_PROJECT_NAME || "",
+    projectPath: metadata?.projectPath || pane.entry.projectPath || pane.entry.env?.REMOTE_TUI_PROJECT_PATH || pane.entry.cwd,
+    status: pane.status
+  };
+}
+
+function listAdminSessions(): AdminSessionDetail[] {
+  const state = tuimux.getState();
+  const panesById = new Map(state.panes.map((pane) => [pane.paneId, pane]));
+  return state.windows.flatMap((window) => {
+    const pane = panesById.get(window.activePaneId);
+    return pane ? [{ ...adminSessionSummary(window, pane), buffer: pane.buffer }] : [];
+  });
 }
 
 app.get("/api/auth/me", async (request, response) => {
@@ -235,6 +312,41 @@ app.get("/api/state", async (request, response) => {
   response.json(filterStateForUser(user));
 });
 
+app.get("/api/admin/sessions", async (request, response) => {
+  const user = await requireAdmin(request, response);
+  if (!user) {
+    return;
+  }
+  response.json({ sessions: listAdminSessions().map(({ buffer: _buffer, ...session }) => session) });
+});
+
+app.get("/api/admin/sessions/:windowId", async (request, response) => {
+  const user = await requireAdmin(request, response);
+  if (!user) {
+    return;
+  }
+  const session = listAdminSessions().find((candidate) => candidate.windowId === request.params.windowId);
+  if (!session) {
+    response.status(404).json({ error: "Session not found" });
+    return;
+  }
+  response.json({ session });
+});
+
+app.delete("/api/admin/sessions/:windowId", async (request, response) => {
+  const user = await requireAdmin(request, response);
+  if (!user) {
+    return;
+  }
+  const session = listAdminSessions().find((candidate) => candidate.windowId === request.params.windowId);
+  if (!session) {
+    response.status(404).json({ error: "Session not found" });
+    return;
+  }
+  tuimux.closeWindow(request.params.windowId);
+  response.status(202).json({ ok: true });
+});
+
 app.post("/api/sessions", async (request, response) => {
   try {
     const user = await requireAuth(request, response);
@@ -253,6 +365,15 @@ app.post("/api/sessions", async (request, response) => {
     const entry = createSessionEntry(agent, project, label, {
       REMOTE_TUI_USER_ID: user.id,
       REMOTE_TUI_USERNAME: user.username
+    });
+    recordSessionMetadata(entry.id, {
+      creator: user.username,
+      creatorId: user.id,
+      createdAt: entry.sessionCreatedAt || new Date().toISOString(),
+      agent: agent.name,
+      agentId: agent.id,
+      projectName: project.name,
+      projectPath: project.path
     });
     tuimux.createWindow(entry);
     response.status(202).json({ entry: toPublicAgentEntry(entry), project });
@@ -503,9 +624,19 @@ wss.on("connection", async (socket, request) => {
             send(socket, { type: "error", message: "Project access denied" });
             break;
           }
-          const entry = createSessionEntry(getAgent(agentId, runtime), project, label, {
+          const agent = getAgent(agentId, runtime);
+          const entry = createSessionEntry(agent, project, label, {
             REMOTE_TUI_USER_ID: socketUser.id,
             REMOTE_TUI_USERNAME: socketUser.username
+          });
+          recordSessionMetadata(entry.id, {
+            creator: socketUser.username,
+            creatorId: socketUser.id,
+            createdAt: entry.sessionCreatedAt || new Date().toISOString(),
+            agent: agent.name,
+            agentId: agent.id,
+            projectName: project.name,
+            projectPath: project.path
           });
           tuimux.createWindow(entry);
           send(socket, { type: "session_requested", entry: toPublicAgentEntry(entry), project });
