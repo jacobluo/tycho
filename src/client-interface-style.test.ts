@@ -19,3 +19,25 @@ test("client exposes light interface style hooks", () => {
   assert.doesNotMatch(appSource, /"reader"/);
   assert.doesNotMatch(cssSource, new RegExp(`data-interface-style="${"read"}${"er"}"`));
 });
+
+test("client exposes project file browser drawer hooks", () => {
+  const appSource = readFileSync("src/client/src/App.vue", "utf8");
+  const drawerSource = readFileSync("src/client/src/components/ProjectFilesDrawer.vue", "utf8");
+  const cssSource = readFileSync("src/client/src/styles.css", "utf8");
+
+  assert.match(appSource, /ProjectFilesDrawer/);
+  assert.match(appSource, /projectFilesOpen/);
+  assert.match(appSource, /Open project files/);
+  assert.match(drawerSource, /\/api\/projects\/.*\/files/);
+  assert.match(drawerSource, /Copy Path/);
+  assert.match(drawerSource, /Copy Content/);
+  assert.match(drawerSource, /Project file search/);
+  assert.match(cssSource, /\.project-files-drawer/);
+  assert.match(cssSource, /\.project-files-resize-handle/);
+  assert.match(cssSource, /\.project-files-backdrop\s*{\s*inset:\s*0;/s);
+  assert.match(cssSource, /\.project-files-drawer\s*{[^}]*padding-top:\s*50px;/s);
+  assert.match(cssSource, /grid-template-columns:\s*minmax\(220px,\s*0\.9fr\)\s*minmax\(260px,\s*1\.1fr\)/);
+  assert.match(cssSource, /\.project-files-list\s*{[^}]*border-right:\s*1px solid var\(--line\);/s);
+  assert.doesNotMatch(cssSource, /\.project-files-backdrop\s*{\s*inset:\s*50px 0 0 0;/s);
+  assert.doesNotMatch(cssSource, /grid-template-rows:\s*minmax\(160px,\s*42%\)\s*minmax\(0,\s*1fr\)/);
+});

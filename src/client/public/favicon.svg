@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Tycho">
+  <defs>
+    <linearGradient id="bg" x1="34" y1="28" x2="222" y2="230" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#111827"/>
+      <stop offset="0.58" stop-color="#17213A"/>
+      <stop offset="1" stop-color="#07111F"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="63" y1="55" x2="183" y2="174" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#63F3FF"/>
+      <stop offset="1" stop-color="#00A8FF"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.00 0 0 0 0 0.83 0 0 0 0 1.00 0 0 0 0.46 0"/>
+      <feBlend in="SourceGraphic" mode="screen"/>
+    </filter>
+    <filter id="cursorGlow" x="-70%" y="-70%" width="240%" height="240%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 1.00 0 0 0 0 0.69 0 0 0 0 0.00 0 0 0 0.54 0"/>
+      <feBlend in="SourceGraphic" mode="screen"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/>
+  <path d="M45 187h166" stroke="#24324D" stroke-width="18" stroke-linecap="round"/>
+  <path d="M54 72h148v34H145v74h-34v-74H54z" fill="url(#cyan)" filter="url(#glow)"/>
+  <path d="M68 151l24 18-24 18" fill="none" stroke="#E9F8FF" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="151" y="157" width="38" height="30" rx="8" fill="#FFB000" filter="url(#cursorGlow)"/>
+  <path d="M51 56c27-20 89-29 137-8" fill="none" stroke="#3AE8FF" stroke-opacity="0.24" stroke-width="7" stroke-linecap="round"/>
+</svg>

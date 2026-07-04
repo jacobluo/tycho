@@ -38,6 +38,7 @@ import {
   type RuntimeConfig
 } from "../runtime/config.js";
 import { listDirectories } from "../runtime/directory-browser.js";
+import { listProjectFiles, previewProjectFile } from "../runtime/project-files.js";
 import { isAllowedWebSocketOrigin, sessionCookieAttributes } from "../runtime/security.js";
 import { clientDistDir, projectRoot } from "../shared/paths.js";
 import { TuimuxClient, type TuimuxMessage, type TuimuxPane, type TuimuxWindow } from "../tuimux/client.js";
@@ -123,6 +124,15 @@ async function requireAdmin(request: IncomingMessage, response: express.Response
 
 function publicConfigForUser(user: PublicUser) {
   return getPublicRuntimeConfig(runtime, filterProjectsForUser(runtime.projects, user));
+}
+
+function projectForFileRequest(projectId: string, user: PublicUser, response: express.Response) {
+  const project = getProject(projectId, runtime);
+  if (!userCanAccessProject(user, project.id)) {
+    response.status(403).json({ error: "Project access denied" });
+    return null;
+  }
+  return project;
 }
 
 type AdminSessionSummary = {
@@ -310,6 +320,40 @@ app.get("/api/state", async (request, response) => {
     return;
   }
   response.json(filterStateForUser(user));
+});
+
+app.get("/api/projects/:projectId/files", async (request, response) => {
+  const user = await requireAuth(request, response);
+  if (!user) {
+    return;
+  }
+  try {
+    const project = projectForFileRequest(request.params.projectId, user, response);
+    if (!project) {
+      return;
+    }
+    const path = typeof request.query.path === "string" ? request.query.path : "";
+    response.json(await listProjectFiles(project, path));
+  } catch {
+    response.status(400).json({ error: "File is not available" });
+  }
+});
+
+app.get("/api/projects/:projectId/files/preview", async (request, response) => {
+  const user = await requireAuth(request, response);
+  if (!user) {
+    return;
+  }
+  try {
+    const project = projectForFileRequest(request.params.projectId, user, response);
+    if (!project) {
+      return;
+    }
+    const path = typeof request.query.path === "string" ? request.query.path : "";
+    response.json(await previewProjectFile(project, path));
+  } catch {
+    response.status(400).json({ error: "File is not available" });
+  }
 });
 
 app.get("/api/admin/sessions", async (request, response) => {
@@ -547,6 +591,10 @@ app.delete("/api/windows/:windowId", async (request, response) => {
   }
   tuimux.closeWindow(request.params.windowId);
   response.status(202).json({ ok: true });
+});
+
+app.use("/api", (_request, response) => {
+  response.status(404).json({ error: "API route not found" });
 });
 
 if (process.env.NODE_ENV === "development") {
